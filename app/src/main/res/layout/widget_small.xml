@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SMALL — spend only. The card FILLS the cell (match_parent); the spend figure is one compact centered
+     block, with a spend-hide eye in the top-right corner so amounts can be masked here too (consistent with
+     big/large). Default cell is 2x1 (see widget_small_info) and it can be resized smaller to hug. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_glass"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@mipmap/ic_launcher"
+            android:contentDescription="@string/app_name" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="9dp"
+            android:text="Spent this month"
+            android:textAllCaps="true"
+            android:fontFamily="@font/inter_semibold"
+            android:letterSpacing="0.04"
+            android:textColor="#FFE6E1F9"
+            android:textSize="10sp"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="6" />
+
+        <TextView
+            android:id="@+id/amount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:includeFontPadding="false"
+            android:text="₹0"
+            android:fontFamily="@font/space_grotesk_bold"
+            android:textColor="#FFFFFFFF"
+            android:textSize="26sp"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="7" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/spend_eye"
+        android:layout_width="17dp"
+        android:layout_height="17dp"
+        android:layout_gravity="top|end"
+        android:src="@drawable/ic_widget_eye_open"
+        android:contentDescription="Hide amounts" />
+</FrameLayout>

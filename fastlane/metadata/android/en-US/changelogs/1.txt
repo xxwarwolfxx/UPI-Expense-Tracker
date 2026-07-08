@@ -1,0 +1,8 @@
+First public release.
+
+* Automatic UPI payment capture (Google Pay, PhonePe, Paytm, CRED confirm screens + bank SMS)
+* Weekly/monthly spend, spend chart, automatic categories, and a review inbox
+* Available-balance wallet with re-anchor
+* Monthly budgets on the home card and a widget
+* Home-screen widgets (spend, available balance, budget)
+* 100% offline — INTERNET permission removed; no cloud, analytics, ads, or tracking

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The green "live" dot before the Available label — the wallet's heartbeat. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#3DDC97" />
+    <size
+        android:width="8dp"
+        android:height="8dp" />
+</shape>

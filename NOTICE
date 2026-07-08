@@ -1,0 +1,33 @@
+THIRD-PARTY NOTICES
+===================
+
+UPI Expense Tracker is licensed under the GNU General Public License v3.0
+(see LICENSE). It bundles the following third-party assets and libraries:
+
+Fonts
+-----
+This application bundles the following fonts, each licensed under the
+SIL Open Font License, Version 1.1 (https://openfontlicense.org):
+
+- Inter
+  Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+
+- Space Grotesk
+  Copyright (c) 2020 The Space Grotesk Project Authors
+  (https://github.com/floriankarsten/space-grotesk)
+
+The SIL OFL 1.1 permits bundling these fonts with software under any license,
+provided this attribution accompanies them. The fonts themselves remain under
+the OFL; the full license text is available at:
+https://openfontlicense.org/open-font-license-official-text/
+
+Icons
+-----
+- Material Symbols / Material Design icons (refresh, visibility, visibility_off)
+  Copyright Google LLC, licensed under the Apache License, Version 2.0
+  (https://www.apache.org/licenses/LICENSE-2.0)
+
+Libraries
+---------
+All bundled runtime libraries (AndroidX / Jetpack, dev.chrisbanes.haze) are
+licensed under the Apache License, Version 2.0.

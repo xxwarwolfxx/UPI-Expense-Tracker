@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app glyph chip (₹) — a hint of the app's aurora (red-pen: brand back onto just this one spot).
+     A 135° amber→magenta→violet wash; the white ₹ (with a soft shadow, set in each layout) stays the focus. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="135"
+        android:startColor="#F6A037"
+        android:centerColor="#E8249D"
+        android:endColor="#6D59DB" />
+    <corners android:radius="7dp" />
+    <stroke
+        android:width="1dp"
+        android:color="#52FFFFFF" />
+</shape>

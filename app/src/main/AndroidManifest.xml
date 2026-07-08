@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Optional budget alerts (Phase 2): the app's only user-facing notification, posted ONLY after the
+         user opts in (Settings → Budgets → "Nudge me") and grants this runtime permission. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The app is fully offline by design (zero network egress). Actively strip INTERNET from the merged
+         manifest so no dependency AAR can silently re-add it — "nothing leaves your phone" is enforced here. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <!-- Insights map (opt-in, Slice C): read the cached last-known location at pay-time to pin where the
+         user was. FINE because COARSE (~2 km) is too coarse for neighborhood pins. Read only while-in-use
+         (the a11y service runs at foreground-service importance) — NO background-location permission. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Declared alongside FINE per the Android 12+ runtime-request contract (request both; "precise"
+         = the FINE entry was granted). "Approximate" → COARSE only → no pins, by the accuracy gate. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Home hero "physical card" tilt reads the motion sensor (game-rotation-vector / accelerometer).
+         Needs no permission; optional (required=false) so the app still installs on a sensor-less device —
+         the card just renders flat there. -->
+    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
+
+    <!-- Package visibility (Android 11+): lets the donate sheet's Zepto-style picker *see* installed UPI
+         apps (PackageManager.queryIntentActivities). The <intent> element needs host="pay" — UPI apps'
+         filters declare upi://pay, and a scheme-only query fails their host constraint (device-verified:
+         scheme-only returned ZERO handlers). The four <package> entries pin the picker's known apps
+         regardless of filter quirks. (Launching the payment itself needs none of this — implicit
+         ACTION_VIEW launches are exempt from visibility filtering.) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" android:host="pay" />
+        </intent>
+        <package android:name="com.google.android.apps.nbu.paisa.user" />
+        <package android:name="com.phonepe.app" />
+        <package android:name="net.one97.paytm" />
+        <package android:name="com.dreamplug.androidapp" />
+    </queries>
+
+    <application
+        android:name=".UpiWalletApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.UPIWallet">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name_short"
+            android:theme="@style/Theme.UPIWallet">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".capture.A11yCaptureService"
+            android:exported="false"
+            android:label="UPI Expense Tracker capture"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/a11y_config" />
+        </service>
+
+        <receiver
+            android:name=".capture.SmsCaptureReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- CSV export shares a cache file via a content:// URI (Settings → Data → Export to CSV). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.goushik.upiwallet.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Home-screen widgets (Phase 5). Three sizes the user picks from: small/big = spend-only,
+             large = the balance widget (masked by default; the eye toggle is an explicit same-app
+             broadcast, so it needs no intent-filter action). updatePeriodMillis=0 — they refresh
+             reactively via the freshness collector in UpiWalletApp, not by polling. -->
+        <receiver
+            android:name=".widget.WalletWidgetSmall"
+            android:exported="false"
+            android:label="@string/widget_small_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_small_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WalletWidgetBig"
+            android:exported="false"
+            android:label="@string/widget_big_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_big_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WalletWidgetLarge"
+            android:exported="false"
+            android:label="@string/widget_large_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_large_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WalletWidgetBudget"
+            android:exported="false"
+            android:label="@string/widget_budget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_budget_info" />
+        </receiver>
+    </application>
+
+</manifest>

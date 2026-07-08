@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Translucent glass widget surface — NO app-color gradient, NO blur (a widget can't sample the
+  wallpaper). One dark indigo-black tint (#0D0920) with real alpha: solid-ish in the centre
+  (#E6 ≈ 0.90, text-safe even over white) falling off toward the corners (#A8 ≈ 0.66, wallpaper
+  peeks through). Errs solid by design — luminance-adaptive: most see-through over dark/mid
+  wallpaper, more solid over bright. No border (red-pen): the dark fill + text-shadow carry the
+  glass edge; the 1px light stroke rendered inconsistently across launchers, so it's dropped.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:centerX="0.5"
+        android:centerY="0.4"
+        android:gradientRadius="180dp"
+        android:startColor="#E60D0920"
+        android:centerColor="#E60D0920"
+        android:endColor="#A80D0920" />
+    <corners android:radius="26dp" />
+</shape>

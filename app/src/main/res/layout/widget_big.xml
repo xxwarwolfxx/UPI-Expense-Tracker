@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BIG — spend only. Card FILLS the cell; header (brand + reload + spend-eye) over three uniform stat
+     columns: today / this week / this month. Default cell 4x1; resizable smaller to hug. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_glass"
+    android:padding="12dp">
+
+    <!-- top row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@mipmap/ic_launcher"
+            android:contentDescription="@string/app_name" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="9dp"
+            android:text="UET"
+            android:fontFamily="@font/inter_semibold"
+            android:textColor="#FFE6E1F9"
+            android:textSize="11sp"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="6" />
+
+        <ImageView
+            android:id="@+id/spend_eye"
+            android:layout_width="17dp"
+            android:layout_height="17dp"
+            android:layout_marginEnd="14dp"
+            android:src="@drawable/ic_widget_eye_open"
+            android:contentDescription="Hide amounts" />
+
+        <ImageView
+            android:id="@+id/refresh_btn"
+            android:layout_width="17dp"
+            android:layout_height="17dp"
+            android:src="@drawable/ic_widget_refresh"
+            android:contentDescription="Refresh" />
+    </LinearLayout>
+
+    <!-- three stats: today / week / month — weighted to FILL the cell height (no dead space top/bottom) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:baselineAligned="false">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Today"
+                android:textAllCaps="true"
+                android:fontFamily="@font/inter_semibold"
+                android:letterSpacing="0.04"
+                android:textColor="#FFE6E1F9"
+                android:textSize="9sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="6" />
+
+            <TextView
+                android:id="@+id/day_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:includeFontPadding="false"
+                android:text="₹0"
+                android:fontFamily="@font/space_grotesk_bold"
+                android:textColor="#FFFFFFFF"
+                android:textSize="18sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="7" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="This week"
+                android:textAllCaps="true"
+                android:fontFamily="@font/inter_semibold"
+                android:letterSpacing="0.04"
+                android:textColor="#FFE6E1F9"
+                android:textSize="9sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="6" />
+
+            <TextView
+                android:id="@+id/week_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:includeFontPadding="false"
+                android:text="₹0"
+                android:fontFamily="@font/space_grotesk_bold"
+                android:textColor="#FFFFFFFF"
+                android:textSize="18sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="7" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="This month"
+                android:textAllCaps="true"
+                android:fontFamily="@font/inter_semibold"
+                android:letterSpacing="0.04"
+                android:textColor="#FFE6E1F9"
+                android:textSize="9sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="6" />
+
+            <TextView
+                android:id="@+id/month_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:includeFontPadding="false"
+                android:text="₹0"
+                android:fontFamily="@font/space_grotesk_bold"
+                android:textColor="#FFFFFFFF"
+                android:textSize="18sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="7" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

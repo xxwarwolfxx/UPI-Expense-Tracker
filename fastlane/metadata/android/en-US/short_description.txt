@@ -1,0 +1,1 @@
+Offline UPI expense tracker: auto-captures payments, no cloud or tracking

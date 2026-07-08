@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Dark window background = indigo-900, so cold start matches the Compose theme (no white flash). -->
+    <style name="Theme.UPIWallet" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/wallet_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths — CSV export writes to cacheDir/exports and shares it via a content:// URI. -->
+<paths>
+    <cache-path name="exports" path="exports/" />
+</paths>

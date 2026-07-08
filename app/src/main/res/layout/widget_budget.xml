@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BUDGET — the monthly-budget money-stack meter. A vertical stack of "note" slots on the left drains
+     top-down as you spend (bottom = money left, top = spent ghosts); a big "% left" reads on the right.
+     No rupee figures. 2×1 cell, fills it (match_parent), translucent glass + text-shadow (no blur). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_glass"
+    android:padding="13dp">
+
+    <!-- ── The meter (shown when a monthly cap is set) ── -->
+    <LinearLayout
+        android:id="@+id/budget_meter"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- the money stack: 6 note slots, filled from the bottom -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp">
+
+            <ImageView android:id="@+id/tier0" android:layout_width="30dp" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="3dp" android:scaleType="fitXY" android:src="@drawable/widget_note_ghost" android:contentDescription="@null" />
+            <ImageView android:id="@+id/tier1" android:layout_width="30dp" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="3dp" android:scaleType="fitXY" android:src="@drawable/widget_note_ghost" android:contentDescription="@null" />
+            <ImageView android:id="@+id/tier2" android:layout_width="30dp" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="3dp" android:scaleType="fitXY" android:src="@drawable/widget_note_ghost" android:contentDescription="@null" />
+            <ImageView android:id="@+id/tier3" android:layout_width="30dp" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="3dp" android:scaleType="fitXY" android:src="@drawable/widget_note_ghost" android:contentDescription="@null" />
+            <ImageView android:id="@+id/tier4" android:layout_width="30dp" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="3dp" android:scaleType="fitXY" android:src="@drawable/widget_note_lit" android:contentDescription="@null" />
+            <ImageView android:id="@+id/tier5" android:layout_width="30dp" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitXY" android:src="@drawable/widget_note_lit" android:contentDescription="@null" />
+        </LinearLayout>
+
+        <!-- the % readout -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="14dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/budget_pct_num"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="29"
+                    android:fontFamily="@font/space_grotesk_bold"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="32sp"
+                    android:shadowColor="#99000000"
+                    android:shadowDx="0"
+                    android:shadowDy="1"
+                    android:shadowRadius="7" />
+
+                <TextView
+                    android:id="@+id/budget_pct_sign"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="%"
+                    android:fontFamily="@font/space_grotesk_medium"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="17sp"
+                    android:layout_marginStart="1dp"
+                    android:shadowColor="#99000000"
+                    android:shadowDx="0"
+                    android:shadowDy="1"
+                    android:shadowRadius="6" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/budget_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="left this month"
+                android:textAllCaps="true"
+                android:fontFamily="@font/inter_semibold"
+                android:letterSpacing="0.04"
+                android:textColor="#FFE6E1F9"
+                android:textSize="9sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="6" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ── Empty state (no monthly cap yet) ── -->
+    <LinearLayout
+        android:id="@+id/budget_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@mipmap/ic_launcher"
+            android:contentDescription="@string/app_name" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Set a monthly budget"
+            android:fontFamily="@font/inter_semibold"
+            android:textColor="#FFE6E1F9"
+            android:textSize="11sp"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="6" />
+    </LinearLayout>
+</FrameLayout>

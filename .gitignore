@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Android / Gradle
+*.iml
+.gradle/
+/local.properties
+.idea/
+build/
+**/build/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Signing / secrets — NEVER commit
+*.keystore
+*.jks
+keystore.properties
+secrets.properties
+**/google-services.json
+.env
+.env.*
+
+# Editor
+*.swp
+.vscode/

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A lit note in the money stack (over band, ≥100% used) — only shows if a partial tier lingers. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:startColor="#ED6266"
+        android:endColor="#E8249D" />
+    <corners android:radius="3dp" />
+</shape>

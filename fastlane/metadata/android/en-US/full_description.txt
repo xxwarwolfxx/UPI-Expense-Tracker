@@ -1,0 +1,41 @@
+A wallet you glance at.
+
+UPI Expense Tracker is a 100% offline personal expense tracker for UPI payments. It quietly
+captures every payment you make, sorts it into categories, and shows your daily, weekly, and
+monthly spend plus an at-a-glance available balance — on the home screen and in home-screen
+widgets. There is no account, no cloud, no ads, and no tracking. Everything stays on your phone.
+
+WHAT IT DOES
+
+* Captures payments automatically. An Accessibility Service reads the on-screen payment
+  confirmation from your UPI app (Google Pay, PhonePe, Paytm, CRED) and your bank's payment SMS,
+  then records the amount, payee, and time. Duplicates are removed by the bank reference number.
+* Shows your spend. This-week and this-month totals, a spend chart, recent transactions, and
+  automatic categories such as Food, Groceries, Transport, and Bills.
+* Available-balance wallet. A manual baseline minus your captured spends, which you can re-anchor
+  to the real figure any time.
+* Home-screen widgets for spend, available balance, and a monthly budget.
+* Budgets. Set a monthly cap and watch it fill on the home card and a widget.
+
+PRIVACY — NOTHING LEAVES YOUR PHONE
+
+The INTERNET permission is actively stripped from the app, so it is incapable of sending any data
+off the device. There is no cloud, no analytics, no crash reporting, and no third-party tracking;
+your data lives in a local database only. CSV export is local and shared by you manually. The
+donate button simply opens a payment page in your browser — there is no payment SDK in the app.
+
+PERMISSIONS
+
+* Accessibility Service — reads the UPI app's payment-confirmation screen to capture a payment.
+  Required for automatic capture; you can also add payments manually.
+* Receive SMS — reads incoming bank payment messages for the reference number and credits. This
+  is the delivery broadcast only; it does not read your existing SMS inbox.
+* Location (fine/coarse) — optional, only to pin where a payment happened for the Insights map.
+  No background location.
+* Post notifications — optional budget-nudge alerts.
+* Ignore battery optimizations — optional, so the capture service is not killed in the background.
+
+This is a single-user app you install for yourself. Because it reads payment screens and SMS, it
+is not permitted on the Google Play Store and is distributed only through open-source channels.
+
+Free and open source under the GNU GPL v3.
