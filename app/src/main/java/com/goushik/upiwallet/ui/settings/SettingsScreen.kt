@@ -1,5 +1,8 @@
 package com.goushik.upiwallet.ui.settings
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,10 +54,13 @@ import com.goushik.upiwallet.ui.theme.TextSecondary
 import com.goushik.upiwallet.ui.theme.TextTertiary
 import com.goushik.upiwallet.ui.theme.WalletShapes
 import com.goushik.upiwallet.ui.theme.glassSurface
+import com.goushik.upiwallet.util.Backup
 import com.goushik.upiwallet.util.DateTime
 import com.goushik.upiwallet.util.Money
 import com.goushik.upiwallet.util.Permissions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Settings & health tab (USER-FLOW §5). Read-only readout + deep-links; AppShell draws the aurora and
@@ -75,6 +81,24 @@ fun SettingsScreen(
     val budgets by repo.observeBudgets().collectAsStateWithLifecycle(emptyList())
     val (grants, _) = rememberCaptureGrants()
     val ctx = LocalContext.current
+
+    // Restore: let the user pick a UET-backup.json (SAF, no storage permission) and merge it back in.
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            ServiceLocator.appScope.launch {
+                val result = runCatching { Backup.restoreFromUri(ctx, ServiceLocator.db, uri) }
+                withContext(Dispatchers.Main) {
+                    val msg = result.fold(
+                        onSuccess = { "Restored ${it.transactions} payments from the backup" },
+                        onFailure = { it.message ?: "Couldn't restore that file" },
+                    )
+                    Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     val available = BalanceCalculator.available(
         anchors, txns,
@@ -200,7 +224,39 @@ fun SettingsScreen(
                         chevron = true,
                         onClick = { com.goushik.upiwallet.util.CsvExport.share(ctx, txns) },
                     )
+                    SettingsRow(
+                        "Back up now", subtitle = "Save a copy to your Downloads",
+                        chevron = true,
+                        onClick = {
+                            ServiceLocator.appScope.launch {
+                                val ok = runCatching {
+                                    Backup.writeToDownloads(ctx, ServiceLocator.db)
+                                }.isSuccess
+                                withContext(Dispatchers.Main) {
+                                    val msg = if (ok) {
+                                        "Backup saved to Downloads/${Backup.FILE_NAME}"
+                                    } else {
+                                        "Couldn't save the backup"
+                                    }
+                                    Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                    )
+                    SettingsRow(
+                        "Restore from a backup", subtitle = "Pick a UET-backup.json file",
+                        chevron = true,
+                        onClick = { restoreLauncher.launch(arrayOf("application/json")) },
+                    )
                 }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Your data lives only on this phone, so uninstalling clears it. A backup is auto-saved " +
+                        "to your Downloads and updates as you spend — keep that file (or copy it to Drive) and " +
+                        "you can restore everything after reinstalling.",
+                    style = MaterialTheme.typography.bodySmall, color = TextTertiary,
+                    modifier = Modifier.padding(start = 2.dp),
+                )
             }
         }
 

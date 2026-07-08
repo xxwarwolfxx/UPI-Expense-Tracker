@@ -1,6 +1,7 @@
 package com.goushik.upiwallet.ui.onboarding
 
 import android.Manifest
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,9 +19,12 @@ import com.goushik.upiwallet.ui.common.IconBattery
 import com.goushik.upiwallet.ui.common.IconSms
 import com.goushik.upiwallet.ui.common.rememberCaptureGrants
 import com.goushik.upiwallet.ui.theme.IconAccent
+import com.goushik.upiwallet.util.Backup
 import com.goushik.upiwallet.util.Ids
 import com.goushik.upiwallet.util.Permissions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class Step {
     WELCOME, PERMISSIONS, RESTRICTED, DETAIL_A11Y, DETAIL_SMS, DETAIL_BATTERY, MODE, BALANCE, IDENTITY, DONE
@@ -51,6 +55,25 @@ fun OnboardingFlow() {
         ActivityResultContracts.RequestPermission(),
     ) { refresh() }
 
+    // Reinstall path: pick a UET-backup.json and restore. A successful import writes a profile whose
+    // onboardedAt is set, so MainActivity's gate flips straight to the wallet — no need to advance steps.
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            ServiceLocator.appScope.launch {
+                val result = runCatching { Backup.restoreFromUri(ctx, ServiceLocator.db, uri) }
+                withContext(Dispatchers.Main) {
+                    val msg = result.fold(
+                        onSuccess = { "Restored ${it.transactions} payments — welcome back" },
+                        onFailure = { it.message ?: "Couldn't restore that file" },
+                    )
+                    Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     // System Back steps backward through the flow (WELCOME lets the system exit normally).
     BackHandler(enabled = step != Step.WELCOME) {
         step = when (step) {
@@ -64,7 +87,10 @@ fun OnboardingFlow() {
     }
 
     when (step) {
-        Step.WELCOME -> WelcomeScreen(onGetStarted = { step = Step.PERMISSIONS })
+        Step.WELCOME -> WelcomeScreen(
+            onGetStarted = { step = Step.PERMISSIONS },
+            onRestore = { restoreLauncher.launch(arrayOf("application/json")) },
+        )
 
         Step.PERMISSIONS -> PermissionHubScreen(
             a11yGranted = grants.a11y,

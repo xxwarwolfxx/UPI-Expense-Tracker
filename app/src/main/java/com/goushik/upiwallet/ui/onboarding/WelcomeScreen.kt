@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.goushik.upiwallet.ui.common.GhostButton
 import com.goushik.upiwallet.ui.common.PrimaryButton
 import com.goushik.upiwallet.ui.common.WalletBackground
 import com.goushik.upiwallet.ui.theme.AuroraBrush
@@ -35,7 +36,11 @@ import com.goushik.upiwallet.ui.theme.White
 
 /** Onboarding screen 1 — first impression + the honest promise (mockup screen 1). */
 @Composable
-fun WelcomeScreen(onGetStarted: () -> Unit, modifier: Modifier = Modifier) {
+fun WelcomeScreen(
+    onGetStarted: () -> Unit,
+    onRestore: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     WalletBackground(modifier) {
         Column(
             Modifier
@@ -76,6 +81,9 @@ fun WelcomeScreen(onGetStarted: () -> Unit, modifier: Modifier = Modifier) {
             Spacer(Modifier.weight(1f))
 
             PrimaryButton("Get started", onGetStarted, trailingArrow = true)
+            Spacer(Modifier.height(10.dp))
+            // Reinstalling? Restore an earlier backup file instead of starting fresh.
+            GhostButton("Restore from a backup", onRestore)
             Spacer(Modifier.height(12.dp))
             Text(
                 "Single-user · works offline · stays on your phone",

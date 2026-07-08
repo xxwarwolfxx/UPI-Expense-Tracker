@@ -1,6 +1,7 @@
 package com.goushik.upiwallet.di
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -11,9 +12,14 @@ import com.goushik.upiwallet.domain.Reconciler
 import com.goushik.upiwallet.domain.UiPrefsStore
 import com.goushik.upiwallet.parse.ConfirmSheetRegistry
 import com.goushik.upiwallet.parse.ParserRegistry
+import com.goushik.upiwallet.util.Backup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 /** v1→v2: add the onboarding-captured user_profile table (replaces the old hardcoded identity constants). */
@@ -97,6 +103,8 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
 object ServiceLocator {
     @Volatile private var initialized = false
 
+    private lateinit var appContext: Context
+
     lateinit var db: AppDatabase
         private set
     lateinit var repository: TransactionRepository
@@ -116,6 +124,7 @@ object ServiceLocator {
         if (initialized) return
         synchronized(this) {
             if (initialized) return
+            appContext = context.applicationContext
             db = Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
@@ -134,5 +143,32 @@ object ServiceLocator {
 
         // Backfill categories for rows captured before the categorizer existed (idempotent — NULL-only).
         appScope.launch { runCatching { com.goushik.upiwallet.domain.categorize.Categorization.run(repository) } }
+
+        startAutoBackup()
     }
+
+    /**
+     * Keep an offline backup fresh so a friend's data survives an uninstall. Any change to the data
+     * tables (a silent capture, a manual add, a category fix, an anchor/budget/profile edit) triggers a
+     * debounced re-write of `Download/UET-backup.json` — on `appScope` (Dispatchers.IO), so it never
+     * touches the capture or UI threads. Gated to after onboarding: we never overwrite a good backup with
+     * an empty one on a fresh/just-reinstalled DB (before the user has restored). No network — MediaStore.
+     */
+    @OptIn(FlowPreview::class)
+    private fun startAutoBackup() {
+        appScope.launch {
+            merge(
+                repository.observeTransactions().map { },
+                repository.observeAnchors().map { },
+                repository.observeBudgets().map { },
+                repository.observeProfile().map { },
+            ).debounce(BACKUP_DEBOUNCE_MS).collect {
+                if (repository.profile()?.onboardedAt == null) return@collect
+                runCatching { Backup.writeToDownloads(appContext, db) }
+                    .onFailure { Log.w("UpiWallet", "auto-backup failed: ${it.message}") }
+            }
+        }
+    }
+
+    private const val BACKUP_DEBOUNCE_MS = 4_000L
 }
