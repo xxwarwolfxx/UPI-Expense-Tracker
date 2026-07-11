@@ -75,14 +75,14 @@ fun ModeScreen(showBalance: Boolean, onSelect: (Boolean) -> Unit, onContinue: ()
         ModeChoice(
             selected = !showBalance,
             title = "Just my spending",
-            body = "See only how much you spend through UPI — the simplest way to glance and reflect.",
+            body = "See only how much you spend through UPI, the simplest way to glance and reflect.",
             onClick = { onSelect(false) },
         ) { IconInsights(Color.White, size = 22.dp) }
         Spacer(Modifier.height(14.dp))
         ModeChoice(
             selected = showBalance,
             title = "My balance too",
-            body = "A wallet you glance at — your available balance, kept live by subtracting every payment.",
+            body = "A wallet you glance at: your available balance, kept live by subtracting every payment.",
             onClick = { onSelect(true) },
         ) { IconWallet(Color.White, size = 22.dp) }
         Spacer(Modifier.height(18.dp))
@@ -156,7 +156,7 @@ fun BalanceScreen(
         Text("What's in your accounts?", style = MaterialTheme.typography.headlineLarge, color = TextPrimary)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Copy the balance from your bank app. We track every payment from here — and you can update it anytime the number drifts.",
+            "Copy the balance from your bank app. We track every payment from here, and you can update it anytime the number drifts.",
             style = MaterialTheme.typography.bodyLarge, color = TextSecondary,
         )
         Spacer(Modifier.height(22.dp))
@@ -172,7 +172,7 @@ fun BalanceScreen(
             keyboardType = KeyboardType.Decimal, textStyle = MaterialTheme.typography.headlineMedium,
         )
         Spacer(Modifier.height(14.dp))
-        HintRow("A starting point, not a login — we never connect to your bank.")
+        HintRow("A starting point, not a login. We never connect to your bank.")
     }
 }
 
@@ -266,7 +266,7 @@ fun DoneScreen(totalPaise: Long, showBalance: Boolean, onOpen: () -> Unit) {
             Text("You're all set", style = MaterialTheme.typography.headlineLarge, color = TextPrimary)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Just pay like you normally do — your wallet updates itself.",
+                "Just pay like you normally do, and your wallet updates itself.",
                 style = MaterialTheme.typography.bodyLarge, color = TextSecondary, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(24.dp))
@@ -283,7 +283,7 @@ fun DoneScreen(totalPaise: Long, showBalance: Boolean, onOpen: () -> Unit) {
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "A red dot appears if something needs a glance — never a notification.",
+                "A red dot appears if something needs a glance, never a notification.",
                 style = MaterialTheme.typography.bodySmall, color = TextTertiary, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.weight(1f))

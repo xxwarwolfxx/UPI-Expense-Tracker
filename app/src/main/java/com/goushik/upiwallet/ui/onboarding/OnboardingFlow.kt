@@ -65,7 +65,7 @@ fun OnboardingFlow() {
                 val result = runCatching { Backup.restoreFromUri(ctx, ServiceLocator.db, uri) }
                 withContext(Dispatchers.Main) {
                     val msg = result.fold(
-                        onSuccess = { "Restored ${it.transactions} payments — welcome back" },
+                        onSuccess = { "Restored ${it.transactions} payments. Welcome back" },
                         onFailure = { it.message ?: "Couldn't restore that file" },
                     )
                     Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
@@ -117,13 +117,13 @@ fun OnboardingFlow() {
 
         Step.DETAIL_A11Y -> PermissionDetailScreen(
             title = "Read the payment screen",
-            body = "When you pay on GPay, PhonePe, Paytm or CRED, the app reads the confirmation — the " +
+            body = "When you pay on GPay, PhonePe, Paytm or CRED, the app reads the confirmation: the " +
                 "amount, who you paid, and your bank. It's the only reliable way to catch payments your " +
                 "bank doesn't text about.",
             reassurances = listOf(
-                "Reads text only — never screenshots",
+                "Reads text only, never screenshots",
                 "Nothing leaves your phone",
-                "Only your UPI apps — nothing else",
+                "Only your UPI apps, nothing else",
             ),
             granted = grants.a11y,
             primaryLabel = "Open Accessibility settings",
@@ -136,7 +136,7 @@ fun OnboardingFlow() {
 
         Step.DETAIL_SMS -> PermissionDetailScreen(
             title = "Catch your bank's texts",
-            body = "When your bank texts about a payment — money in or out — the app reads the amount " +
+            body = "When your bank texts about a payment, whether money in or out, the app reads the amount " +
                 "and reference number to confirm captures and de-duplicate them.",
             reassurances = listOf("Bank UPI messages only", "Stays on your phone"),
             granted = grants.sms,

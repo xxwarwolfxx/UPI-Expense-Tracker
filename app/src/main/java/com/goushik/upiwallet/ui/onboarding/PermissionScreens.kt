@@ -82,7 +82,7 @@ fun PermissionHubScreen(
         Spacer(Modifier.height(20.dp))
         UnlockBanner(onUnlock)
         Spacer(Modifier.height(6.dp))
-        PermissionRow("Accessibility", "Reads the payment screen — text only", true, a11yGranted, onA11y) {
+        PermissionRow("Accessibility", "Reads the payment screen, text only", true, a11yGranted, onA11y) {
             IconAccessibility(IconViolet)
         }
         HorizontalDivider(color = HairlineColor)
@@ -206,7 +206,7 @@ fun RestrictedSettingsScreen(
         footer = {
             PrimaryButton("Open app settings", onOpenAppInfo)
             Spacer(Modifier.height(10.dp))
-            GhostButton("I've done this — re-check", onRecheck)
+            GhostButton("I've done this, re-check", onRecheck)
         },
     ) {
         FeatureTile { IconLock(IconViolet, size = 24.dp) }
@@ -221,7 +221,7 @@ fun RestrictedSettingsScreen(
         NumStep(1, "Tap Open app settings below.")
         NumStep(2, "Tap ⋮ (top-right) → Allow restricted settings.")
         NumStep(3, "Confirm with your PIN / fingerprint.")
-        NumStep(4, "Come back — we'll handle the rest.")
+        NumStep(4, "Come back, and we'll handle the rest.")
         Spacer(Modifier.height(16.dp))
         MenuMock()
     }
@@ -352,7 +352,7 @@ private fun EnabledStrip() {
     ) {
         IconCheck(GreenCredit, size = 16.dp)
         Spacer(Modifier.width(11.dp))
-        Text("Switched on — you're good.", style = MaterialTheme.typography.bodyMedium, color = GreenCredit)
+        Text("Switched on, you're good.", style = MaterialTheme.typography.bodyMedium, color = GreenCredit)
     }
 }
 
