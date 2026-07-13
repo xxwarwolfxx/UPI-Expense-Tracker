@@ -1,14 +1,14 @@
 <resources>
     <string name="app_name">UPI Expense Tracker</string>
     <!-- Short launcher label (home-screen icon); the full app_name is used everywhere else. -->
-    <string name="app_name_short">UET</string>
+    <string name="app_name_short">UPI ET</string>
     <string name="a11y_desc">Reads the confirmation screen in your UPI apps (Google Pay, PhonePe, Paytm, CRED) to record your payments. Text only — no screenshots; nothing leaves your phone.</string>
 
     <!-- Home-screen widgets -->
-    <string name="widget_small_label">UET · Spend (small)</string>
-    <string name="widget_big_label">UET · Spend (big)</string>
-    <string name="widget_large_label">UET · Balance (large)</string>
-    <string name="widget_budget_label">UET · Budget (meter)</string>
+    <string name="widget_small_label">UPI ET · Spend (small)</string>
+    <string name="widget_big_label">UPI ET · Spend (big)</string>
+    <string name="widget_large_label">UPI ET · Balance (large)</string>
+    <string name="widget_budget_label">UPI ET · Budget (meter)</string>
     <string name="widget_small_desc">This month’s spend, at a glance.</string>
     <string name="widget_big_desc">This month + this week spend.</string>
     <string name="widget_large_desc">Balance (hidden until you tap) + per-account, with spend.</string>

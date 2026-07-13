@@ -27,8 +27,8 @@ android {
         applicationId = "com.goushik.upiwallet"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
