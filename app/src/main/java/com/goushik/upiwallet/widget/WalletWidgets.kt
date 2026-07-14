@@ -39,6 +39,11 @@ abstract class BaseWalletWidget(private val size: WidgetSize) : AppWidgetProvide
         onUpdate(context, mgr, intArrayOf(id))
     }
 
+    /** Forget persisted eye state for removed widgets so prefs don't leak stale ids. */
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        RevealRegistry.forget(appWidgetIds)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_TOGGLE_REVEAL, ACTION_TOGGLE_SPEND -> {

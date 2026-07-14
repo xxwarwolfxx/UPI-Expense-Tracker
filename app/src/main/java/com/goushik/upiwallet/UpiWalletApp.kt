@@ -1,11 +1,6 @@
 package com.goushik.upiwallet
 
 import android.app.Application
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import androidx.core.content.ContextCompat
 import com.goushik.upiwallet.di.ServiceLocator
 import com.goushik.upiwallet.widget.RevealRegistry
 import com.goushik.upiwallet.widget.WidgetSnapshot
@@ -19,16 +14,17 @@ class UpiWalletApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ServiceLocator.init(this)
+        RevealRegistry.init(this) // load persisted widget eye state before any widget renders
         ReconcileWorker.schedule(this)
         HealthCheckWorker.schedule(this)
         startWidgetSync()
     }
 
     /**
-     * Home-screen widgets don't observe Room, so keep them fresh from ONE process-scoped collector
-     * over the same three flows Home uses → push to every placed widget. It also doubles as the
-     * re-mask safety net: a fresh process starts with an empty [RevealRegistry], so its first push
-     * renders the balance masked. The screen-off receiver re-masks explicitly while the process is up.
+     * Home-screen widgets don't observe Room, so keep them fresh from ONE process-scoped collector over
+     * the same three flows Home uses → push to every placed widget. Eye state is persisted
+     * ([RevealRegistry]), so each push renders the user's last saved choice (masked-by-default until they
+     * reveal it; whatever they set then sticks — no reset on lock/unlock).
      */
     private fun startWidgetSync() {
         val repo = ServiceLocator.repository
@@ -42,21 +38,5 @@ class UpiWalletApp : Application() {
                 WidgetSnapshot.build(txns, anchors, profile, budgets, System.currentTimeMillis())
             }.collect { snap -> WidgetUpdater.push(this@UpiWalletApp, snap) }
         }
-
-        // Reveal is ephemeral: re-mask the balance when the screen turns off / the phone locks.
-        // ACTION_SCREEN_OFF can't be a manifest receiver, so register it dynamically (process-scoped).
-        val screenOff = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                if (RevealRegistry.clearAll()) {
-                    ServiceLocator.appScope.launch { runCatching { WidgetUpdater.loadAndPush(context) } }
-                }
-            }
-        }
-        ContextCompat.registerReceiver(
-            this,
-            screenOff,
-            IntentFilter(Intent.ACTION_SCREEN_OFF),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
     }
 }
