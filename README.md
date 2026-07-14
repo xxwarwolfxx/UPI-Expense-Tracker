@@ -77,6 +77,10 @@ A single-user, sideloaded app that processes *your own* SMS and notifications on
 falls under the personal-use exemption of India's DPDP Act §3(c)(i); it only reads
 completed-payment artifacts and holds no RBI-regulated role.
 
+## Contact
+
+Built by Goushik. Questions, feedback, or security reports: **upiexpensetracker@gmail.com** — or [open an issue](../../issues).
+
 ## License
 
 [GNU General Public License v3.0](LICENSE) (`GPL-3.0-only`).
