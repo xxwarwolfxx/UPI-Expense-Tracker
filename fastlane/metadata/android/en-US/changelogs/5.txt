@@ -1,1 +1,1 @@
-Widget fix: the balance and spend "eye" now remembers your choice. Locking and unlocking your phone no longer resets it — reveal stays revealed, hidden stays hidden, until you tap to change it. A freshly-added widget still starts hidden by default.
+Widget fix: the balance and spend "eye" now remembers your choice. Locking and unlocking your phone no longer resets it: reveal stays revealed, hidden stays hidden, until you tap to change it. A freshly-added widget still starts hidden by default.

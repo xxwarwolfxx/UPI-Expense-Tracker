@@ -5,5 +5,5 @@ First public release.
 * Available-balance wallet with re-anchor
 * Monthly budgets on the home card and a widget
 * Home-screen widgets (spend, available balance, budget)
-* Offline backup & restore — save a copy to Downloads and restore it after reinstalling, so your data survives an uninstall (nothing ever leaves your phone)
-* 100% offline — INTERNET permission removed; no cloud, analytics, ads, or tracking
+* Offline backup and restore, so your data survives an uninstall
+* 100% offline: no INTERNET permission, no cloud, analytics, ads, or tracking
