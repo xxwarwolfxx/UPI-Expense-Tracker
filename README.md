@@ -2,6 +2,8 @@
 
 *A wallet you glance at.*
 
+**Website: [upiet.in](https://upiet.in)**
+
 An Android-first, **100% offline** personal expense tracker for UPI payments. It quietly captures
 every payment you make, sorts it, and shows your daily / weekly / monthly spend plus an
 at-a-glance available balance — on the home screen and in home-screen widgets. No account, no
@@ -12,6 +14,16 @@ cloud, no ads, no tracking. Everything stays on your phone.
 > (see [Install](#install)). It is a single-user tool you install for yourself.
 
 ---
+
+## Screenshots
+
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="19%" alt="Home — spend this month, today/this week, recent payments" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="19%" alt="Insights — spend by category" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="19%" alt="Insights — spend chart" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="19%" alt="Home-screen widgets" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="19%" alt="Settings — capture health and wallet" />
+</p>
 
 ## What it does
 
