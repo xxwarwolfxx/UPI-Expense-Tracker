@@ -8,6 +8,7 @@
 .idea/
 build/
 **/build/
+/app/release/
 .kotlin/
 captures/
 .externalNativeBuild/
