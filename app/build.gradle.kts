@@ -27,8 +27,8 @@ android {
         applicationId = "com.goushik.upiwallet"
         minSdk = 31
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.1.3"
+        versionCode = 6
+        versionName = "1.1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -51,6 +51,12 @@ android {
             isMinifyEnabled = false
             // Signed only when the release config above was created; otherwise the release APK is unsigned.
             signingConfigs.findByName("release")?.let { signingConfig = it }
+            // Don't stamp the git commit into the APK. It makes the binary differ between builds of
+            // identical source, which breaks the byte-for-byte rebuild F-Droid uses to verify that a
+            // release really came from this source (and to publish it under the developer's key).
+            vcsInfo {
+                include = false
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

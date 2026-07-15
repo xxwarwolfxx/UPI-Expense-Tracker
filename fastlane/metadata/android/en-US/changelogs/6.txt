@@ -1,0 +1,5 @@
+Build-only release: no user-facing changes.
+
+The APK no longer embeds the git commit it was built from, so anyone can rebuild this app from
+source and get a byte-for-byte identical binary. That lets F-Droid verify the release really came
+from the public source code, and publish it signed with the developer's own key.
