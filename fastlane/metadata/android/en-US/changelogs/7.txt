@@ -1,0 +1,6 @@
+Build-only release: no user-facing changes.
+
+The APK no longer embeds the dependency-metadata block that the Android build tools add by default.
+It is an opaque, app-store-oriented record of the app's dependency tree that cannot be checked
+against the public source code. Removing it lets F-Droid accept this release and publish it signed
+with the developer's own key.

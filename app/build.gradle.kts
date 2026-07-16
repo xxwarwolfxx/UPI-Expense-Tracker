@@ -27,8 +27,8 @@ android {
         applicationId = "com.goushik.upiwallet"
         minSdk = 31
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.1.4"
+        versionCode = 7
+        versionName = "1.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -62,6 +62,13 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+    // Don't embed the dependency-metadata blob AGP adds to the APK signing block. It's an opaque,
+    // Play-Store-oriented record of the dependency tree that can't be verified from source, so
+    // F-Droid's scanner rejects any APK carrying it ("extra signing block").
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
