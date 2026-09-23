@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.goushik.upiwallet.domain.insights.ChartPoint
 import com.goushik.upiwallet.domain.insights.InsightsData
 import com.goushik.upiwallet.domain.insights.InsightsPeriod
+import com.goushik.upiwallet.domain.insights.PickerDate
 import com.goushik.upiwallet.ui.common.WalletBackground
 import com.goushik.upiwallet.ui.nav.BottomNavHeight
 import com.goushik.upiwallet.ui.theme.PillShape
@@ -57,8 +58,6 @@ import com.goushik.upiwallet.ui.theme.WalletShapes
 import com.goushik.upiwallet.ui.theme.White
 import com.goushik.upiwallet.ui.theme.glassSurface
 import com.goushik.upiwallet.util.Money
-import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -75,7 +74,9 @@ fun InsightsScreen(
     onViewChange: (InsightsView) -> Unit = {},
     onOpenLocationSettings: () -> Unit = {},
     onOpenTransaction: (String) -> Unit = {},
-    onOpenCategory: (String) -> Unit = {},
+    /** A donut slice was tapped: its category label + the window the slice was summed over (the period,
+     *  and the applied custom range when the period is CUSTOM) so the list it opens adds up to the slice. */
+    onOpenCategory: (label: String, period: InsightsPeriod, customRange: Pair<Long, Long>?) -> Unit = { _, _, _ -> },
     onOpenReview: () -> Unit = {},
     vm: InsightsViewModel = viewModel(factory = InsightsViewModel.Factory),
 ) {
@@ -99,7 +100,7 @@ fun InsightsScreen(
         onPickEnd = { picking = DateField.END },
         onOpenLocationSettings = onOpenLocationSettings,
         onOpenTransaction = onOpenTransaction,
-        onOpenCategory = onOpenCategory,
+        onOpenCategory = { label -> onOpenCategory(label, state.period, vm.customRange.value) },
         onOpenReview = onOpenReview,
         view = view,
         onViewChange = onViewChange,
@@ -390,8 +391,8 @@ private fun DateField(label: String, ms: Long?, onClick: () -> Unit, modifier: M
 }
 
 private val DATE_FMT = DateTimeFormatter.ofPattern("d MMM yyyy")
-private fun fmtDate(ms: Long): String =
-    Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DATE_FMT)
+/** A date-picker value is 00:00 UTC of the picked day — read through [PickerDate], never the device zone. */
+private fun fmtDate(pickerMs: Long): String = PickerDate.toLocalDate(pickerMs).format(DATE_FMT)
 
 private fun emptyCaption(period: InsightsPeriod): String = when (period) {
     InsightsPeriod.DAY -> "No spend today yet"

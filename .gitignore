@@ -21,7 +21,7 @@ captures/
 # Signing / secrets — NEVER commit
 *.keystore
 *.jks
-keystore.properties
+keystore.properties*
 secrets.properties
 **/google-services.json
 .env
@@ -30,3 +30,6 @@ secrets.properties
 # Editor
 *.swp
 .vscode/
+
+# Local DB/corpus backups (tools/backup-db.sh, CaptureCorpusTest) — real txn data, never commit
+/backups/

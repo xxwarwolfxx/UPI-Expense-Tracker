@@ -23,7 +23,7 @@ import com.goushik.upiwallet.ui.theme.White
 /**
  * A glassmorphic on/off switch in the app's design language: a glass track that fills with the aurora
  * gradient when on, and a white thumb that slides across. [onToggle] receives the new state. One shared
- * control across the wallet-mode / AI / location settings (replaced the old "On/Off" text pill).
+ * control across the wallet-mode, reminder and location settings (replaced the old "On/Off" text pill).
  */
 @Composable
 fun TogglePill(on: Boolean, modifier: Modifier = Modifier, onToggle: (Boolean) -> Unit) {

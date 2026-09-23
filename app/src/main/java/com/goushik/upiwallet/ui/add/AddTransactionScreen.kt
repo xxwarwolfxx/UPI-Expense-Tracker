@@ -24,6 +24,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -48,6 +49,7 @@ import com.goushik.upiwallet.di.ServiceLocator
 import com.goushik.upiwallet.domain.categorize.Categorization
 import com.goushik.upiwallet.domain.categorize.Category
 import com.goushik.upiwallet.domain.categorize.Categorizer
+import com.goushik.upiwallet.domain.insights.PickerDate
 import com.goushik.upiwallet.ui.common.FieldLabel
 import com.goushik.upiwallet.ui.common.IconChevronLeft
 import com.goushik.upiwallet.ui.common.PrimaryButton
@@ -65,8 +67,7 @@ import com.goushik.upiwallet.ui.theme.glassSurface
 import com.goushik.upiwallet.util.Ids
 import com.goushik.upiwallet.util.Money
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalTime
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -75,8 +76,25 @@ private fun moneyFilter(s: String): String = s.filter { it.isDigit() || it == '.
 private val DATE_FMT = DateTimeFormatter.ofPattern("d MMM yyyy")
 private val zone: ZoneId get() = ZoneId.systemDefault()
 
-private fun fmtDate(ms: Long): String =
-    Instant.ofEpochMilli(ms).atZone(zone).format(DATE_FMT)
+/** A date-picker value is 00:00 UTC of the picked day, so it is read through [PickerDate], never the zone. */
+private fun fmtDate(pickerMs: Long): String = PickerDate.toLocalDate(pickerMs).format(DATE_FMT)
+
+/**
+ * The category chips a manual entry offers. "Transfer-to-self" is left out, exactly as on the detail
+ * screen: totals decide self-transfers from the owner's own UPI IDs and name, never from this label, so a
+ * manual "Transfer-to-self" payment would still count as spending — and teach that label to the payee.
+ */
+internal val ManualCategoryChoices: List<Category> = Category.entries.filter { it != Category.SELF_TRANSFER }
+
+/** Days after today can't be picked: a payment being logged has already happened, and a future-dated row
+ *  would sit at the top of Recent, counted in no total, until its date came round. */
+@OptIn(ExperimentalMaterial3Api::class)
+private object NotAfterToday : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+        PickerDate.isOnOrBeforeToday(utcTimeMillis, System.currentTimeMillis(), zone)
+
+    override fun isSelectableYear(year: Int): Boolean = year <= LocalDate.now(zone).year
+}
 
 /**
  * Manual transaction entry — opened from the raised "+" in the bottom nav. Full-screen over the shared
@@ -127,7 +145,7 @@ private fun Body(accounts: List<String>, onBack: () -> Unit) {
     var direction by remember { mutableStateOf(Direction.DEBIT) }
     var amount by remember { mutableStateOf("") }
     var payee by remember { mutableStateOf("") }
-    var dateMs by remember { mutableStateOf<Long?>(null) }   // null = today/now
+    var dateMs by remember { mutableStateOf<Long?>(null) }   // a date-picker value (UTC midnight); null = now
     var account by remember { mutableStateOf<String?>(null) }
     var category by remember { mutableStateOf<Category?>(null) }
     var pickingDate by remember { mutableStateOf(false) }
@@ -169,7 +187,7 @@ private fun Body(accounts: List<String>, onBack: () -> Unit) {
     Spacer(Modifier.height(18.dp))
     FieldLabel("Category", "optional — we'll guess if you skip it")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Category.entries.forEach { cat ->
+        ManualCategoryChoices.forEach { cat ->
             SelectChip(cat.label, category == cat) { category = if (category == cat) null else cat }
         }
     }
@@ -191,11 +209,8 @@ private fun Body(accounts: List<String>, onBack: () -> Unit) {
             ServiceLocator.appScope.launch {
                 val repo = ServiceLocator.repository
                 val now = System.currentTimeMillis()
-                // Use the picked calendar day at the current time-of-day (so "today" == now).
-                val tsEvent = picked?.let {
-                    Instant.ofEpochMilli(it).atZone(zone).toLocalDate()
-                        .atTime(LocalTime.now(zone)).atZone(zone).toInstant().toEpochMilli()
-                } ?: now
+                // The picked calendar day at the current time-of-day (so "today" == now).
+                val tsEvent = PickerDate.eventMsFor(picked, now, zone)
                 val txn = TransactionEntity(
                     id = Ids.uuid7(),
                     amountPaise = amt,
@@ -227,7 +242,11 @@ private fun Body(accounts: List<String>, onBack: () -> Unit) {
     )
 
     if (pickingDate) {
-        val dpState = rememberDatePickerState(initialSelectedDateMillis = dateMs ?: System.currentTimeMillis())
+        val dpState = rememberDatePickerState(
+            // Seed with TODAY as a picker value — raw "now" pre-selects yesterday in India before 05:30.
+            initialSelectedDateMillis = dateMs ?: PickerDate.today(System.currentTimeMillis(), zone),
+            selectableDates = NotAfterToday,
+        )
         DatePickerDialog(
             onDismissRequest = { pickingDate = false },
             confirmButton = {

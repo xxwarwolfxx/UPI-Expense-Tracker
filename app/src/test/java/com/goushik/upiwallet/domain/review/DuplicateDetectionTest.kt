@@ -49,8 +49,8 @@ class DuplicateDetectionTest {
     }
 
     @Test fun `same amount but a different known payee is not a twin`() {
-        val target = txn("a", 4_200, ts = 100 * min, payeeName = "Ari Chandran S")
-        val other = txn("b", 4_200, ts = 100 * min, payeeName = "S Muniyandi")
+        val target = txn("a", 4_321, ts = 100 * min, payeeName = "Juniper Quill T")
+        val other = txn("b", 4_321, ts = 100 * min, payeeName = "K Brambleton")
         assertNull(DuplicateDetection.twin(target, listOf(target, other)))
     }
 

@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 class UpiWalletApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.goushik.upiwallet.util.Dbg.init(this) // before anything logs
         ServiceLocator.init(this)
         RevealRegistry.init(this) // load persisted widget eye state before any widget renders
         ReconcileWorker.schedule(this)

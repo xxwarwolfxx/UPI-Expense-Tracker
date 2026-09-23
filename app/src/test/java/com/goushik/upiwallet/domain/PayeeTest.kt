@@ -10,8 +10,8 @@ class PayeeTest {
 
     @Test fun `individual names are detected as people`() {
         for (n in listOf(
-            "Ari Chandran S", "S Muniyandi", "Mr Parthiban Jeyakumar", "Ramesh Kumar",
-            "Priya Sharma", "J Karthick", "Kumaravelpandian B", "Dr Anita Rao",
+            "Juniper Quill T", "K Brambleton", "Mr Oswin Tumblewood", "Ramesh Kumar",
+            "Priya Sharma", "R Fennimore", "Periwinkleton B", "Dr Anita Rao",
         )) {
             assertEquals(n, PayeeKind.PERSON, Payee.kind(n))
             assertTrue(n, Payee.isPerson(n))

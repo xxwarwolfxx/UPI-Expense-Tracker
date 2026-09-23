@@ -1,0 +1,1 @@
+Restore is now a true merge: accounts dedupe by label, payments dedupe by content, and a bank reference number always wins. Added per-account delete on Update balance. Onboarding rebuilt in Android's real unlock order for sideloads, with OEM-aware steps. Fixed backup files multiplying after a reinstall.

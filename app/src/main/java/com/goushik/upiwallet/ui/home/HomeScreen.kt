@@ -1,5 +1,10 @@
 package com.goushik.upiwallet.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,12 +18,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.goushik.upiwallet.data.Direction
@@ -50,11 +57,25 @@ fun HomeScreen(
     val fancyCard by ServiceLocator.uiPrefs.fancyCard.collectAsStateWithLifecycle()
     val (grants, _) = rememberCaptureGrants()
     val ctx = LocalContext.current
+    // One-time notification permission ask (Android 13+), so the "capture paused" reminder can reach him
+    // even when the app is closed. The standard system dialog, once per install — no in-app UI.
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        ServiceLocator.uiPrefs.markNotificationsPrompted()
+    }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
+        if (ServiceLocator.uiPrefs.notificationsPrompted()) return@LaunchedEffect
+        val granted = ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) ServiceLocator.uiPrefs.markNotificationsPrompted()
+        else notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
     HomeContent(
         state = state,
         fancyCard = fancyCard,
-        captureOff = !grants.a11y,
-        onFixCapture = { ctx.startActivity(Permissions.accessibilitySettings()) },
+        captureOff = grants.capturePaused,
+        captureStuck = grants.captureStuck,
+        onFixCapture = { Permissions.openAccessibilitySettings(ctx) },
         onOpenTransaction = onOpenTransaction,
         onUpdateBalance = onUpdateBalance,
         onInsightsDay = onInsightsDay,
@@ -70,6 +91,7 @@ fun HomeContent(
     state: HomeUiState,
     fancyCard: Boolean,
     captureOff: Boolean,
+    captureStuck: Boolean = false,
     onFixCapture: () -> Unit,
     onOpenTransaction: (String) -> Unit,
     onUpdateBalance: () -> Unit,
@@ -93,7 +115,7 @@ fun HomeContent(
         item { TopBar(name = state.displayName) }
 
         if (captureOff) {
-            item { CaptureDownBanner(onFix = onFixCapture) }
+            item { CaptureDownBanner(onFix = onFixCapture, stuck = captureStuck) }
         }
 
         item {

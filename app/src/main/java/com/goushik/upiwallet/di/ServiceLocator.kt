@@ -13,6 +13,8 @@ import com.goushik.upiwallet.domain.UiPrefsStore
 import com.goushik.upiwallet.parse.ConfirmSheetRegistry
 import com.goushik.upiwallet.parse.ParserRegistry
 import com.goushik.upiwallet.util.Backup
+import com.goushik.upiwallet.util.Dbg
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -118,7 +120,16 @@ object ServiceLocator {
 
     val parserRegistry: ParserRegistry = ParserRegistry.default()
     val confirmSheets: ConfirmSheetRegistry = ConfirmSheetRegistry.default()
-    val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * Process-wide background scope. The exception handler is load-bearing: without it, one uncaught
+     * exception in any launched job (a full disk during a capture insert, say) goes to the thread's default
+     * handler and kills the whole process — accessibility capture included, and with no onUnbind, so even
+     * the capture-off reminder can't tell. A failed background job must never take capture down with it.
+     */
+    val appScope: CoroutineScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO +
+            CoroutineExceptionHandler { _, t -> Log.w("UpiWallet", "background job failed: ${t.javaClass.simpleName}") },
+    )
 
     fun init(context: Context) {
         if (initialized) return
@@ -150,9 +161,16 @@ object ServiceLocator {
     /**
      * Keep an offline backup fresh so a friend's data survives an uninstall. Any change to the data
      * tables (a silent capture, a manual add, a category fix, an anchor/budget/profile edit) triggers a
-     * debounced re-write of `Download/UET-backup.json` — on `appScope` (Dispatchers.IO), so it never
-     * touches the capture or UI threads. Gated to after onboarding: we never overwrite a good backup with
-     * an empty one on a fresh/just-reinstalled DB (before the user has restored). No network — MediaStore.
+     * debounced re-write of the Downloads backup file — on `appScope` (Dispatchers.IO), so it never
+     * touches the capture or UI threads. No network — MediaStore.
+     *
+     * Two separate guards keep an empty database from destroying the good file. The onboarding gate
+     * covers a fresh install and a Welcome-screen restore still finishing its capture steps — nothing is
+     * written until setup is done. It can NOT cover a database emptied later in the same install (SQLite
+     * corruption, the debug sample seeder), because onboarding then completes again; that case is
+     * [Backup.shouldKeepPrevious]'s never-shrink rule, which writes the small snapshot to a new dated file
+     * and keeps the bigger one. A failed write never touches the previous file, and is recorded
+     * ([Backup.observeStatus]) as well as logged.
      */
     @OptIn(FlowPreview::class)
     private fun startAutoBackup() {
@@ -165,7 +183,7 @@ object ServiceLocator {
             ).debounce(BACKUP_DEBOUNCE_MS).collect {
                 if (repository.profile()?.onboardedAt == null) return@collect
                 runCatching { Backup.writeToDownloads(appContext, db) }
-                    .onFailure { Log.w("UpiWallet", "auto-backup failed: ${it.message}") }
+                    .onFailure { t -> Dbg.w { "auto-backup failed: ${t.javaClass.simpleName}" } }
             }
         }
     }

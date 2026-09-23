@@ -166,7 +166,107 @@ class BalanceCalculatorTest {
         assertFalse(BalanceCalculator.isSelfTransfer(txn, ownVpas, ownNames))
     }
 
+    // ── whole words, never fragments: a friend with a similar name is still spend ──
+
+    @Test fun `a payee whose name merely contains the own name is not a self-transfer`() {
+        val own = setOf("arun")
+        assertFalse(isSelf("Tarun", own))
+        assertFalse(isSelf("Karunakaran", own))
+        assertFalse(isSelf("Tarun Kumar", setOf("arun kumar")))   // full-name collision on the first word
+    }
+
+    @Test fun `a payee sharing only a later word of the own name is not a self-transfer`() {
+        assertFalse(isSelf("Kumar", setOf("sai kumar")))
+        assertFalse(isSelf("Kumar Stores", setOf("sai kumar")))
+    }
+
+    @Test fun `a merchant whose name contains the own name is not a self-transfer`() {
+        assertFalse(isSelf("Supriya Medicals", setOf("priya")))
+    }
+
+    @Test fun `own name words at the start of a longer payee name are a self-transfer`() {
+        assertTrue(isSelf("Bram S", ownNames))                     // bank adds an initial
+        assertTrue(isSelf("BRAM   STOKER", setOf("bram stoker")))  // case + extra spaces don't matter
+        assertTrue(isSelf("Bram Stoker", setOf("bram stoker")))
+    }
+
+    @Test fun `a short handle that starts the own name is a self-transfer, a later word alone is not`() {
+        assertTrue(isSelf("Bram", setOf("bram stoker")))
+        assertFalse(isSelf("Stoker", setOf("bram stoker")))
+    }
+
+    @Test fun `a tiny own name never widens to longer payee names`() {
+        // "ali" is too short to claim every "Ali …" merchant; only an exact payee of 4+ chars could match.
+        assertFalse(isSelf("Ali Stores", setOf("ali")))
+    }
+
+    // ── a surname shortened to an initial, on either side ──
+
+    @Test fun `the bank's initial for a two-word own name is still a transfer to yourself`() {
+        assertTrue(isSelf("RAVI K", setOf("ravi kumar")))
+        assertTrue(isSelf("Bram S", setOf("bram stoker")))
+        assertTrue(isSelf("BRAM  S", setOf("bram stoker")))          // banks sometimes double the space
+    }
+
+    @Test fun `an own name typed with an initial still matches the full name`() {
+        assertTrue(isSelf("RAVI KUMAR", setOf("ravi k")))
+        assertTrue(isSelf("Bram Stoker", setOf("bram s")))
+    }
+
+    @Test fun `a different initial or a different first word is not a transfer to yourself`() {
+        assertFalse(isSelf("Bram T", setOf("bram stoker")))
+        assertFalse(isSelf("Bram Tomlin", setOf("bram s")))
+        assertFalse(isSelf("B Stoker", setOf("bram stoker")))            // the first word must be the same
+        assertFalse(isSelf("Tarun K", setOf("arun kumar")))
+        assertFalse(isSelf("Tarun", setOf("arun")))
+    }
+
+    @Test fun `an initial does not stretch to a longer merchant name`() {
+        assertFalse(isSelf("Bram S Traders", setOf("bram stoker")))
+    }
+
+    private fun isSelf(payeeName: String, own: Set<String>) =
+        BalanceCalculator.isSelfTransfer(debit(9, 10_000, ts = 1_000, payeeName = payeeName), emptySet(), own)
+
     // ── fixtures ──────────────────────────────────────────────────────────────
+
+    // ── anchorsAfterDelete(): removing ONE account without moving the cutoff ────
+
+    @Test fun `deleting a non-latest anchor drops available by exactly its baseline`() {
+        val a = anchor(baseline = 100_000, anchoredAt = 1_000, id = "a")
+        val b = anchor(baseline = 250_000, anchoredAt = 2_000, id = "b")
+        val txns = listOf(debit(1, 30_000, ts = 2_500))
+        val before = BalanceCalculator.available(listOf(a, b), txns, ownVpas, ownNames)
+
+        val after = BalanceCalculator.anchorsAfterDelete(listOf(a, b), "a")!!
+
+        assertEquals(before - 100_000L, BalanceCalculator.available(after, txns, ownVpas, ownNames))
+    }
+
+    @Test fun `deleting the anchor that holds the cutoff cannot re-cut history`() {
+        val a = anchor(baseline = 100_000, anchoredAt = 1_000, id = "a")
+        val b = anchor(baseline = 250_000, anchoredAt = 5_000, id = "b") // holds max(anchoredAt)
+        // A debit BETWEEN the two stamps: a naive delete of b would slide the cutoff back to 1_000
+        // and re-subtract it; the re-stamp keeps the window fixed.
+        val txns = listOf(debit(1, 40_000, ts = 2_000), debit(2, 10_000, ts = 6_000))
+        val before = BalanceCalculator.available(listOf(a, b), txns, ownVpas, ownNames)
+
+        val after = BalanceCalculator.anchorsAfterDelete(listOf(a, b), "b")!!
+
+        assertEquals(before - 250_000L, BalanceCalculator.available(after, txns, ownVpas, ownNames))
+        // The surviving anchor now carries the old cutoff.
+        assertEquals(5_000L, after.single().anchoredAt)
+    }
+
+    @Test fun `deleting the last anchor returns an empty set`() {
+        val only = anchor(baseline = 100_000, anchoredAt = 1_000, id = "a")
+        assertEquals(emptyList<BalanceAnchorEntity>(), BalanceCalculator.anchorsAfterDelete(listOf(only), "a"))
+    }
+
+    @Test fun `deleting an unknown id returns null`() {
+        val a = anchor(baseline = 100_000, anchoredAt = 1_000, id = "a")
+        assertEquals(null, BalanceCalculator.anchorsAfterDelete(listOf(a), "nope"))
+    }
 
     private fun anchor(baseline: Long, anchoredAt: Long, id: String = "a-$anchoredAt-$baseline") =
         BalanceAnchorEntity(

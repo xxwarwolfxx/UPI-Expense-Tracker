@@ -17,6 +17,16 @@ object DateTime {
     private val DATE_YEAR_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy")
     private val FULL_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM yyyy · h:mm a")
 
+    /** Clock time only: "2:14 PM" — for phrases that already carry the day ("since 2:14 PM"). */
+    fun time(epochMs: Long): String = Instant.ofEpochMilli(epochMs).atZone(zone).format(TIME_FMT)
+
+    /** A plain day: "3 Jun", or "3 Jun 2025" when it isn't this year. Never "Today"/"Yesterday". */
+    fun day(epochMs: Long, now: Long = System.currentTimeMillis()): String {
+        val then = Instant.ofEpochMilli(epochMs).atZone(zone).toLocalDate()
+        val thisYear = Instant.ofEpochMilli(now).atZone(zone).year
+        return then.format(if (then.year == thisYear) DATE_FMT else DATE_YEAR_FMT)
+    }
+
     /** Full date+time for the transaction-detail screen: "Mon, 1 Jun 2026 · 2:14 PM". */
     fun full(epochMs: Long): String = Instant.ofEpochMilli(epochMs).atZone(zone).format(FULL_FMT)
 

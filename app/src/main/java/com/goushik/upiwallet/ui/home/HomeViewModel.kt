@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.goushik.upiwallet.data.BalanceAnchorEntity
+import com.goushik.upiwallet.data.BudgetEntity
 import com.goushik.upiwallet.data.Direction
 import com.goushik.upiwallet.data.TransactionEntity
 import com.goushik.upiwallet.data.TransactionRepository
 import com.goushik.upiwallet.data.TxnStatus
+import com.goushik.upiwallet.data.UserProfileEntity
 import com.goushik.upiwallet.di.ServiceLocator
 import com.goushik.upiwallet.domain.AccountMatch
 import com.goushik.upiwallet.domain.BalanceCalculator
@@ -15,6 +18,7 @@ import com.goushik.upiwallet.domain.Payee
 import com.goushik.upiwallet.domain.budget.BudgetStatus
 import com.goushik.upiwallet.domain.budget.budgetStatus
 import com.goushik.upiwallet.domain.insights.InsightsPeriod
+import com.goushik.upiwallet.domain.insights.spendInPeriod
 import com.goushik.upiwallet.util.DateTime
 import com.goushik.upiwallet.util.prettyName
 import kotlinx.coroutines.flow.SharingStarted
@@ -82,10 +86,62 @@ data class HomeUiState(
 }
 
 /**
- * First ViewModel in the app — establishes the pattern. Combines the three repository flows into one
- * display-ready [HomeUiState]. Capture-health is intentionally NOT here: it's system-settings state
- * read at the composable layer via `rememberCaptureGrants()`. Self-transfers are kept in the list
- * (marked neutral) but excluded from balance + spend totals, matching [BalanceCalculator].
+ * PURE — the whole Home state from the four repo snapshots + one clock, so it is host-testable (the
+ * totals-reconcile test pins it against the widgets, Budgets and Insights). Every spend total is
+ * [spendInPeriod]: the same predicate AND the same bounded window those surfaces use, so "this month"
+ * is one number app-wide — a row dated in the future is left out here exactly as Budgets leaves it out.
+ */
+fun buildHomeState(
+    txns: List<TransactionEntity>,          // DESC by timestampEvent (the repo's order)
+    anchors: List<BalanceAnchorEntity>,
+    profile: UserProfileEntity?,
+    budgets: List<BudgetEntity>,
+    now: Long,
+): HomeUiState {
+    val ownVpas = profile?.ownVpaSet() ?: emptySet()
+    val ownNames = profile?.ownNameSet() ?: emptySet()
+    val month = spendInPeriod(txns, ownVpas, ownNames, InsightsPeriod.MONTH, now).toList()
+    val week = spendInPeriod(txns, ownVpas, ownNames, InsightsPeriod.WEEK, now).toList()
+    val today = spendInPeriod(txns, ownVpas, ownNames, InsightsPeriod.DAY, now).toList()
+
+    val visible = txns.filter { it.status != TxnStatus.DISCARDED }
+
+    // The monthly cap (if set) — built from the same spendInPeriod, so spent == monthSpentPaise.
+    val monthBudget = budgets
+        .firstOrNull { it.period == InsightsPeriod.MONTH.name && it.limitPaise > 0L }
+        ?.let { budgetStatus(it, txns, ownVpas, ownNames, now) }
+
+    return HomeUiState(
+        loading = false,
+        availableBalancePaise = BalanceCalculator.available(anchors, txns, ownVpas, ownNames),
+        accounts = anchors.map { AccountBalance(it.accountLabel, it.baselinePaise) },
+        // Per-account spend this month, attributed by bank label (canonicalised) → only the user's own
+        // set-up accounts. Spends without a matching account simply aren't shown per-account.
+        accountMonthSpend = anchors.map { a ->
+            AccountSpend(
+                a.accountLabel,
+                month.filter { AccountMatch.matches(it.bankLabel, a.accountLabel) }.sumOf { it.amountPaise },
+            )
+        },
+        monthSpentPaise = month.sumOf { it.amountPaise },
+        monthCount = month.size,
+        weekSpentPaise = week.sumOf { it.amountPaise },
+        weekCount = week.size,
+        todaySpentPaise = today.sumOf { it.amountPaise },
+        todayCount = today.size,
+        recentTxns = visible.take(5).map { it.toRowUi(ownVpas, ownNames, now) },
+        displayName = profile?.displayName.orEmpty(),
+        showBalance = profile?.showBalance ?: true,
+        monthBudget = monthBudget,
+    )
+}
+
+/**
+ * First ViewModel in the app — establishes the pattern. Combines the repository flows into one
+ * display-ready [HomeUiState] via the pure [buildHomeState]. Capture-health is intentionally NOT here:
+ * it's system-settings state read at the composable layer via `rememberCaptureGrants()`. Self-transfers
+ * are kept in the list (marked neutral) but excluded from balance + spend totals, matching
+ * [BalanceCalculator].
  */
 class HomeViewModel(repo: TransactionRepository) : ViewModel() {
 
@@ -95,51 +151,7 @@ class HomeViewModel(repo: TransactionRepository) : ViewModel() {
         repo.observeProfile(),
         repo.observeBudgets(),
     ) { txns, anchors, profile, budgets ->
-        val ownVpas = profile?.ownVpaSet() ?: emptySet()
-        val ownNames = profile?.ownNameSet() ?: emptySet()
-        val now = System.currentTimeMillis()
-        val monthStart = DateTime.startOfMonthMs(now)
-        val weekStart = DateTime.startOfWeekMs(now)
-        val dayStart = DateTime.startOfDayMs(now)
-
-        fun spendSince(fromMs: Long) = txns.asSequence().filter {
-            it.status != TxnStatus.DISCARDED &&
-                it.direction == Direction.DEBIT &&
-                !BalanceCalculator.isSelfTransfer(it, ownVpas, ownNames) &&
-                it.timestampEvent >= fromMs
-        }
-
-        val visible = txns.filter { it.status != TxnStatus.DISCARDED }
-
-        // The monthly cap (if set) — same isSpend/spendWindow the tiles use, so spent == monthSpentPaise.
-        val monthBudget = budgets
-            .firstOrNull { it.period == InsightsPeriod.MONTH.name && it.limitPaise > 0L }
-            ?.let { budgetStatus(it, txns, ownVpas, ownNames, now) }
-
-        HomeUiState(
-            loading = false,
-            availableBalancePaise = BalanceCalculator.available(anchors, txns, ownVpas, ownNames),
-            accounts = anchors.map { AccountBalance(it.accountLabel, it.baselinePaise) },
-            // Per-account spend this month, attributed by bank label (canonicalised) → only the user's own
-            // set-up accounts. Spends without a matching account simply aren't shown per-account.
-            accountMonthSpend = anchors.map { a ->
-                AccountSpend(
-                    a.accountLabel,
-                    spendSince(monthStart).filter { AccountMatch.matches(it.bankLabel, a.accountLabel) }
-                        .sumOf { it.amountPaise },
-                )
-            },
-            monthSpentPaise = spendSince(monthStart).sumOf { it.amountPaise },
-            monthCount = spendSince(monthStart).count(),
-            weekSpentPaise = spendSince(weekStart).sumOf { it.amountPaise },
-            weekCount = spendSince(weekStart).count(),
-            todaySpentPaise = spendSince(dayStart).sumOf { it.amountPaise },
-            todayCount = spendSince(dayStart).count(),
-            recentTxns = visible.take(5).map { it.toRowUi(ownVpas, ownNames, now) },
-            displayName = profile?.displayName.orEmpty(),
-            showBalance = profile?.showBalance ?: true,
-            monthBudget = monthBudget,
-        )
+        buildHomeState(txns, anchors, profile, budgets, System.currentTimeMillis())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Empty)
 
     companion object {

@@ -11,17 +11,26 @@ import com.goushik.upiwallet.util.Money
  * every parser — this keys purely on the flattened text.
  *
  * Anchored on the literal **"Pay ₹<amt>"** action token; amount taken FROM it; payee from "To <name>";
- * payer bank + account tail best-effort. CRED's harvest captured only the PIN screen (no success screen), so
- * its rows stay PENDING until the bank SMS confirms or the ReconcileWorker ages them — the same honest
- * a11y-only limit GPay already has.
+ * payer bank + account tail best-effort. A screen carrying an outcome headline is rejected like in every
+ * other parser ([ConfirmSheetPatterns.outcomeHeadline]). CRED's harvest captured only the PIN screen (no
+ * success screen), so its rows stay PENDING until the bank SMS confirms or the ReconcileWorker ages them —
+ * the same honest a11y-only limit GPay already has.
  */
 class CredConfirmSheetParser : ConfirmSheetParser {
     override val pkg = "com.dreamplug.androidapp"
     override val name = "a11y-cred"
-    override val version = 1
+    override val version = 3      // v3 = outcome-headline reject
     override val active = true
 
     override fun qualify(text: String): QualifyResult {
+        // A screen that DESCRIBES payments can never record one — shared with every other parser.
+        ScreenShape.describesPayments(text)?.let {
+            return QualifyResult(QualifyVerdict.REJECTED, "describes payments ($it)")
+        }
+        // ...nor can one that REPORTS how a payment ended, whatever sheet lingers under it.
+        ConfirmSheetPatterns.outcomeHeadline(text)?.let {
+            return QualifyResult(QualifyVerdict.REJECTED, "reports an outcome (\"$it\")")
+        }
         val amount = PAY.find(text)?.groupValues?.get(1)?.let { Money.parsePaise(it) }
             ?: return QualifyResult(QualifyVerdict.REJECTED, "no 'Pay ₹' action token")
         val bank = ConfirmSheetPatterns.BANK.find(text)?.value

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-variant overrides. The debug build installs ALONGSIDE the real signed app, so every
+     user-visible name has to differ — otherwise there are two identical icons on the home screen
+     and two identically-named services in Accessibility, and the wrong one gets enabled. -->
+<resources>
+    <string name="app_name">UPI ET (test copy)</string>
+    <string name="app_name_short">UPI ET test</string>
+    <string name="a11y_desc">TEST COPY — a side-by-side debug build. Enabling this does not affect your real UPI Expense Tracker or its data.</string>
+    <string name="a11y_service_label">UPI ET TEST COPY capture</string>
+
+    <!-- Every widget and the capture-off reminder read "TEST" too: a test copy's widgets sit on the same
+         home screen as the real ones, and its reminder looks like the real app's. Release text is unchanged. -->
+    <string name="widget_brand">TEST · UPI ET</string>
+    <string name="widget_small_caption">TEST · Spent this month</string>
+    <string name="widget_budget_left">TEST · left this month</string>
+    <string name="widget_budget_over">TEST · over budget</string>
+    <string name="widget_budget_at_limit">TEST · limit reached</string>
+    <string name="widget_budget_over_used">TEST · of budget used</string>
+    <string name="widget_budget_empty">TEST · Set a monthly budget</string>
+    <string name="widget_setup_title">TEST · Set up UPI Expense Tracker</string>
+    <string name="widget_paused_title">TEST · Paused</string>
+    <string name="capture_off_title">TEST · Payments aren\'t being recorded</string>
+</resources>

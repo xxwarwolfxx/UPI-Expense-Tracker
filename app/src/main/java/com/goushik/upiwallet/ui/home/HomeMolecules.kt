@@ -280,6 +280,16 @@ private fun ColumnScope.BalanceHeroContent(
         }
     }
     Spacer(Modifier.height(10.dp))
+    if (accounts.isEmpty()) {
+        // No account → no starting balance, so `availablePaise` is just minus every payment ever made.
+        // Say what's missing instead of printing that number (Settings shows "—" for the same state); the
+        // "Update balance" pill above is the way in to add one.
+        Text(
+            "Add an account to see your balance",
+            style = MaterialTheme.typography.bodyLarge, color = TextSecondary,
+        )
+        return
+    }
     Row(
         Modifier.clickable(
             enabled = accounts.isNotEmpty(),

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quota bar, coral to magenta — over the cap. The TRACK is the shared white-13% hollow; the PROGRESS layer is the band's
+     gradient, clipped horizontally. A widget TextView can't carry a gradient, so the bar is where the
+     brand colour lives (the number is a solid band colour, same as widget_budget). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="3dp" />
+            <solid android:color="#21FFFFFF" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip android:clipOrientation="horizontal" android:gravity="left">
+            <shape android:shape="rectangle">
+                <corners android:radius="3dp" />
+                <gradient android:type="linear" android:angle="0" android:startColor="#ED6266" android:centerColor="#EE4380" android:endColor="#E8249D" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

@@ -27,8 +27,8 @@ android {
         applicationId = "com.goushik.upiwallet"
         minSdk = 31
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.1.5"
+        versionCode = 9
+        versionName = "1.1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -47,6 +47,14 @@ android {
     }
 
     buildTypes {
+        // A debug install is a SIDE-BY-SIDE mirror, never a replacement. A phone carrying the
+        // release-signed build cannot take a debug APK over it (signature mismatch), and forcing it
+        // would mean an uninstall — which wipes the ledger, because allowBackup=false. Its own
+        // applicationId lets both live on one phone at once.
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = false
             // Signed only when the release config above was created; otherwise the release APK is unsigned.
@@ -63,9 +71,9 @@ android {
             )
         }
     }
-    // Don't embed the dependency-metadata blob AGP adds to the APK signing block. It's an opaque,
-    // Play-Store-oriented record of the dependency tree that can't be verified from source, so
-    // F-Droid's scanner rejects any APK carrying it ("extra signing block").
+    // Required for F-Droid's reproducible-build verification: AGP's encrypted "Dependency metadata" block in the signing
+    // block made otherwise-identical builds differ, so F-Droid's byte-for-byte `check apk` rejected the
+    // binary (sibling of the vcsInfo gotcha above). Keep BOTH suppressions forever.
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false

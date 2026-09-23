@@ -64,7 +64,8 @@ import kotlinx.coroutines.launch
 /**
  * Budgets (Phase 2) — three optional caps (today / this week / this month), each with a live progress bar
  * (calm aurora → amber at 80% → coral when over) and an inline amount editor. The "Nudge me" toggle opts
- * into the one budget notification (requesting POST_NOTIFICATIONS on Android 13+). Full-screen over the
+ * into the budget nudge (asking for POST_NOTIFICATIONS on Android 13+ only if it isn't granted yet — Home
+ * already asks once, for the capture-off reminder). Full-screen over the
  * shared aurora; owns its own [BackHandler]. Reads the repo flows directly (like SettingsScreen), so the
  * bars update the instant a payment lands.
  */
@@ -114,7 +115,7 @@ fun BudgetsScreen(onBack: () -> Unit) {
         AlertsToggle(on = alertsOn)
         Spacer(Modifier.height(12.dp))
         Text(
-            "Off by default. Turning it on asks for notification permission — the app's only notification.",
+            "Off by default. The nudge shows a percentage only, never an amount.",
             style = MaterialTheme.typography.bodySmall, color = TextTertiary,
             modifier = Modifier.padding(start = 2.dp),
         )

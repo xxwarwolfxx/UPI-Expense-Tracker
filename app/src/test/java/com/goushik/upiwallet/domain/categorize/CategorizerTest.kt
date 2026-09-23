@@ -14,7 +14,7 @@ import org.junit.Test
 class CategorizerTest {
 
     @Test fun `unknown person payee is Other but NOT flagged for review`() {
-        val r = Categorizer.categorize(debit("Ari Chandran S"), emptySet(), emptySet(), emptyMap())
+        val r = Categorizer.categorize(debit("Juniper Quill T"), emptySet(), emptySet(), emptyMap())
         assertEquals(Category.OTHER, r.category)
         assertEquals("person", r.source)
         assertFalse(r.needsReview)

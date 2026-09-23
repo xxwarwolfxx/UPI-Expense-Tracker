@@ -27,7 +27,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="10dp"
-            android:text="UPI ET"
+            android:text="@string/widget_brand"
             android:fontFamily="@font/inter_semibold"
             android:textColor="#FFFFFFFF"
             android:textSize="13sp"

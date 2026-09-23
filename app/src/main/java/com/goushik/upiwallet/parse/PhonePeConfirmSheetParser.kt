@@ -11,17 +11,31 @@ import com.goushik.upiwallet.util.Money
  *
  * Anchored on the literal **"Pay ₹<amt>"** action token (NOT a bare ₹) and the amount is taken FROM it —
  * PhonePe's home/history shows many "₹500 - Sent Securely" rows but no singular pay action, so those screens
- * never qualify. (This replaces GPay's "exactly one distinct amount" rule, which would misfire on a real
- * payment whose sheet also shows an account/wallet balance.) Success ("Payment Successful") is resolved by
- * the shared episode tokens in A11yCaptureService, same as GPay.
+ * never qualify. (This replaces GPay's old "exactly one distinct amount" rule, which would misfire on a real
+ * payment whose sheet also shows an account/wallet balance.)
+ *
+ * **The success overlay.** PhonePe paints "Payment Successful" ON TOP of this sheet, and the accessibility
+ * tree still holds the sheet underneath — "Pay ₹1" included. Read naively, the success screen is a second
+ * payment: two stored captures in the owner's ledger are exactly that. So [qualify] rejects any screen that
+ * carries an outcome headline ([ConfirmSheetPatterns.outcomeHeadline]), and the capture service checks an
+ * open episode's terminal decision ([com.goushik.upiwallet.capture.TerminalDecision]) BEFORE qualifying,
+ * which is what now confirms the payment from that very overlay.
  */
 class PhonePeConfirmSheetParser : ConfirmSheetParser {
     override val pkg = "com.phonepe.app"
     override val name = "a11y-phonepe"
-    override val version = 1
+    override val version = 3      // v3 = outcome-headline reject (the success overlay)
     override val active = true
 
     override fun qualify(text: String): QualifyResult {
+        // A screen that DESCRIBES payments can never record one — shared with every other parser.
+        ScreenShape.describesPayments(text)?.let {
+            return QualifyResult(QualifyVerdict.REJECTED, "describes payments ($it)")
+        }
+        // ...nor can one that REPORTS how a payment ended, whatever sheet lingers under it.
+        ConfirmSheetPatterns.outcomeHeadline(text)?.let {
+            return QualifyResult(QualifyVerdict.REJECTED, "reports an outcome (\"$it\")")
+        }
         val amount = PAY.find(text)?.groupValues?.get(1)?.let { Money.parsePaise(it) }
             ?: return QualifyResult(QualifyVerdict.REJECTED, "no 'Pay ₹' action token")
         val bank = ConfirmSheetPatterns.BANK.find(text)?.value

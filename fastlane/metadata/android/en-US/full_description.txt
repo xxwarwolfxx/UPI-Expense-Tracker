@@ -14,7 +14,10 @@ WHAT IT DOES
   automatic categories such as Food, Groceries, Transport, and Bills.
 * Available-balance wallet. A manual baseline minus your captured spends, which you can re-anchor
   to the real figure any time.
-* Home-screen widgets for spend, available balance, and a monthly budget.
+* Home-screen widgets for spend, available balance, a monthly budget, and week/month budget
+  progress.
+* Tells you when capture stops. If the accessibility switch goes off, you get a reminder and the
+  widgets show "Capture paused", so a stalled total never looks current.
 * Budgets. Set a monthly cap and watch it fill on the home card and a widget.
 
 PRIVACY — NOTHING LEAVES YOUR PHONE
@@ -32,7 +35,8 @@ PERMISSIONS
   is the delivery broadcast only; it does not read your existing SMS inbox.
 * Location (fine/coarse) — optional, only to pin where a payment happened for the Insights map.
   No background location.
-* Post notifications — optional budget-nudge alerts.
+* Post notifications — a reminder when payment capture is switched off, plus optional budget
+  nudges.
 * Ignore battery optimizations — optional, so the capture service is not killed in the background.
 
 This is a single-user app you install for yourself. Because it reads payment screens and SMS, it

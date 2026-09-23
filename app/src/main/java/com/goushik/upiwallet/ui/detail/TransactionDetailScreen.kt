@@ -25,15 +25,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.goushik.upiwallet.data.Direction
 import com.goushik.upiwallet.data.RawEventEntity
+import com.goushik.upiwallet.data.Source
 import com.goushik.upiwallet.data.TransactionEntity
 import com.goushik.upiwallet.data.TxnStatus
 import com.goushik.upiwallet.di.ServiceLocator
@@ -53,6 +58,7 @@ import com.goushik.upiwallet.domain.insights.Cities
 import com.goushik.upiwallet.domain.insights.CityMapLoader
 import com.goushik.upiwallet.domain.insights.nearestLabel
 import com.goushik.upiwallet.domain.review.DuplicateDetection
+import com.goushik.upiwallet.domain.review.RemovedPayments
 import com.goushik.upiwallet.ui.common.IconBusiness
 import com.goushik.upiwallet.ui.common.IconChevronDown
 import com.goushik.upiwallet.ui.common.IconChevronLeft
@@ -70,6 +76,7 @@ import com.goushik.upiwallet.ui.theme.WalletShapes
 import com.goushik.upiwallet.ui.theme.WarnColor
 import com.goushik.upiwallet.ui.theme.White
 import com.goushik.upiwallet.ui.theme.FieldBg
+import com.goushik.upiwallet.ui.theme.glassSurface
 import com.goushik.upiwallet.util.DateTime
 import com.goushik.upiwallet.util.Money
 import com.goushik.upiwallet.util.accountLabel
@@ -90,8 +97,30 @@ private sealed interface DetailState {
         val all: List<TransactionEntity>,
         val ownVpas: Set<String>,
         val ownNames: Set<String>,
+        /** txn id → package of the UPI app whose screen created it, so each row names its real app. */
+        val appOf: Map<String, String>,
     ) : DetailState
 }
+
+/** A Remove made on this screen, remembered so it can be undone: the status the row had just before,
+ *  and whether it was made from the duplicate prompt at the top (the Undo then shows up there too). */
+internal data class UndoRemove(val previous: TxnStatus, val fromDuplicatePrompt: Boolean)
+
+/** Keeps the Undo across a rotation or process death, so a payment removed a moment ago still offers the
+ *  exact Undo (back to the status it had) instead of "Put back". Saved as "<status>|<fromDuplicatePrompt>". */
+internal val UndoRemoveSaver: Saver<UndoRemove?, String> = Saver(
+    save = { u -> u?.let { "${it.previous.name}|${it.fromDuplicatePrompt}" } },
+    restore = { saved ->
+        val parts = saved.split('|')
+        TxnStatus.entries.firstOrNull { it.name == parts.getOrNull(0) }
+            ?.let { UndoRemove(it, parts.getOrNull(1) == "true") }
+    },
+)
+
+/** The Undo to keep once the row's latest state is seen: kept while the row is still removed (an Undo tap
+ *  keeps it until the restore actually lands, so the strip never flashes "Put back"), dropped once the row
+ *  is live again. */
+internal fun undoAfterRowSeen(undo: UndoRemove?, removed: Boolean): UndoRemove? = if (removed) undo else null
 
 private val AmountBig = TextStyle(
     fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = 46.sp, fontFeatureSettings = "tnum",
@@ -99,9 +128,13 @@ private val AmountBig = TextStyle(
 
 /**
  * Transaction detail — a centered **receipt** (Phase B): big mark → name → white amount → a quiet status
- * line → a manual "Select a category" section (NO AI on this screen) → borderless fact rows → a quiet
- * Remove. The screen is **live**: it observes the single row, so an edit / AI sweep / reconciler merge
- * reflects without re-opening. Full-screen over the shared aurora; owns its own [BackHandler].
+ * line → a manual "Select a category" section → borderless fact rows → a quiet Remove. The screen is
+ * **live**: it observes the single row, so an edit / categorizer sweep / reconciler merge reflects without
+ * re-opening. Full-screen over the shared aurora; owns its own [BackHandler].
+ *
+ * Removing is two taps (the app's inline "Remove? Keep / Remove" strip — no dialogs) and the screen stays
+ * open afterwards with an Undo, because once it closes a removed payment is out of every list. A payment
+ * that is already removed shows "Put back" instead.
  */
 @Composable
 fun TransactionDetailScreen(txnId: String, onBack: () -> Unit) {
@@ -114,9 +147,10 @@ fun TransactionDetailScreen(txnId: String, onBack: () -> Unit) {
         val ownNames = profile?.ownNameSet() ?: emptySet()
         // One-shot snapshot for the duplicate-twin glance (a human backstop — staleness is harmless).
         val all = repo.transactions()
+        val appOf = repo.captureApps()
         repo.observeTransactionById(txnId).collect { txn ->
             value = if (txn == null) DetailState.NotFound
-            else DetailState.Loaded(txn, raws, all, ownVpas, ownNames)
+            else DetailState.Loaded(txn, raws, all, ownVpas, ownNames, appOf)
         }
     }
 
@@ -128,7 +162,7 @@ fun TransactionDetailScreen(txnId: String, onBack: () -> Unit) {
         when (val s = state) {
             DetailState.Loading -> CenterNote("Loading…")
             DetailState.NotFound -> CenterNote("Transaction not found")
-            is DetailState.Loaded -> ReceiptBody(s, onBack)
+            is DetailState.Loaded -> ReceiptBody(s)
         }
         Spacer(Modifier.height(28.dp))
     }
@@ -149,7 +183,7 @@ private fun BackBar(onBack: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReceiptBody(s: DetailState.Loaded, onBack: () -> Unit) {
+private fun ReceiptBody(s: DetailState.Loaded) {
     val txn = s.txn
     val isSelf = BalanceCalculator.isSelfTransfer(txn, s.ownVpas, s.ownNames)
     val isPerson = Payee.isPerson(txn.payeeName, txn.payeeVpa) && !isSelf
@@ -175,13 +209,33 @@ private fun ReceiptBody(s: DetailState.Loaded, onBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         AmountLine(txn, isSelf)
         Spacer(Modifier.height(12.dp))
-        StatusLine(txn)
+        StatusLine(txn, s.appOf[txn.id])
+    }
+
+    // A Remove made on this screen, so it can be undone. Set before the write (so the row never flashes
+    // "Put back" as it flips to Removed), then corrected to the status the write actually replaced.
+    // Saveable, so a rotation still offers the exact Undo. An Undo tap leaves it in place until the restore
+    // lands and the row is seen live again (the effect below), so the way back never flashes "Put back".
+    var undo by rememberSaveable(txn.id, stateSaver = UndoRemoveSaver) { mutableStateOf<UndoRemove?>(null) }
+    val remove: (fromDuplicatePrompt: Boolean) -> Unit = { fromPrompt ->
+        undo = UndoRemove(txn.status, fromPrompt)
+        ServiceLocator.appScope.launch {
+            val previous = ServiceLocator.repository.removeForUndo(txn.id)
+            undo = previous?.let { UndoRemove(it, fromPrompt) }
+        }
+    }
+    val undoRemove: () -> Unit = {
+        undo?.let { u -> restorePayment(txn.id) { row -> RemovedPayments.undoStatus(row, u.previous) } }
     }
 
     // A duplicate the reconciler couldn't merge — surfaced here (folded in from the old Review queue).
-    // Only on still-flagged rows, so a settled payment doesn't nag. "Remove this copy" discards THIS row.
-    val twin = remember(txn.id, s.all) {
-        if (txn.needsReview) DuplicateDetection.twin(txn, s.all) else null
+    // Only on still-flagged, live rows, so a settled payment doesn't nag. "Remove this copy" discards
+    // THIS row, and the screen stays with the Undo in that same spot (and only there).
+    val removed = txn.status == TxnStatus.DISCARDED
+    LaunchedEffect(removed) { undo = undoAfterRowSeen(undo, removed) }
+    val undoAtTop = removed && undo?.fromDuplicatePrompt == true
+    val twin = remember(txn.id, txn.status, s.all) {
+        if (txn.needsReview && !removed) DuplicateDetection.twin(txn, s.all) else null
     }
     var dupDismissed by remember(txn.id) { mutableStateOf(false) }
     if (twin != null && !dupDismissed) {
@@ -193,16 +247,36 @@ private fun ReceiptBody(s: DetailState.Loaded, onBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         DuplicateNotice(
             sentence = "Another $twinAmount to $who was captured at " +
-                "${DateTime.rowTime(twin.timestampEvent)} (${sourceLabel(twin.source)}).",
-            onRemove = { removePayment(txn.id); onBack() },
+                "${DateTime.rowTime(twin.timestampEvent)} (${sourceLabel(twin.source, s.appOf[twin.id])}).",
+            onRemove = { remove(true) },
             onKeep = { dupDismissed = true },
         )
+    }
+    if (undoAtTop) {
+        Spacer(Modifier.height(16.dp))
+        RemovedStrip(text = "Removed this copy. It no longer counts in any total.", action = "Undo", onAction = undoRemove)
     }
 
     Spacer(Modifier.height(8.dp))
     CategorySection(txn)
     FactsSection(txn, s.raws)
-    RemoveLine(onRemove = { removePayment(txn.id); onBack() })
+    RemoveSection(
+        state = removeStateFor(removed, undo),
+        onRemove = { remove(false) },
+        onUndo = undoRemove,
+        onPutBack = { restorePayment(txn.id) { row -> row?.let(RemovedPayments::putBackStatus) } },
+    )
+}
+
+/** What the bottom of the receipt offers. */
+internal enum class RemoveState { LIVE, UNDO, PUT_BACK, NONE }
+
+/** The bottom of the receipt for a row that is [removed] or not, with the Undo this screen still holds. */
+internal fun removeStateFor(removed: Boolean, undo: UndoRemove?): RemoveState = when {
+    !removed -> RemoveState.LIVE
+    undo?.fromDuplicatePrompt == true -> RemoveState.NONE   // its Undo is up top, where the tap was
+    undo != null -> RemoveState.UNDO
+    else -> RemoveState.PUT_BACK
 }
 
 /** The duplicate prompt — plain glass + hairline; the only warn accent is the tiny amber dot. Ported from
@@ -269,8 +343,9 @@ private fun AmountLine(txn: TransactionEntity, isSelf: Boolean) {
     }
 }
 
+/** [appPkg] = the UPI app whose screen created the row (null for SMS/manual rows, or old captures). */
 @Composable
-private fun StatusLine(txn: TransactionEntity) {
+private fun StatusLine(txn: TransactionEntity, appPkg: String?) {
     val (word, color) = when (txn.status) {
         TxnStatus.CONFIRMED -> "Confirmed" to GreenCredit
         TxnStatus.PENDING -> "Pending" to WarnColor
@@ -282,13 +357,13 @@ private fun StatusLine(txn: TransactionEntity) {
         Spacer(Modifier.width(8.dp))
         // "Captured via" is merged in here — no separate chip.
         Text(
-            "$word · ${sourceLabel(txn.source)}",
+            "$word · ${sourceLabel(txn.source, appPkg)}",
             style = MaterialTheme.typography.bodyMedium, color = TextSecondary,
         )
     }
 }
 
-/** The primary action on this screen: a MANUAL category picker — a user override of the auto-categorization. */
+/** The primary action on this screen: a manual category picker. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CategorySection(txn: TransactionEntity) {
@@ -447,8 +522,10 @@ private fun OriginalMessageRow(raws: List<RawEventEntity>) {
                 } else {
                     raws.forEachIndexed { i, raw ->
                         if (i > 0) Spacer(Modifier.height(14.dp))
+                        // Only an a11y raw's package is an app — an SMS raw keeps the sender there.
+                        val appPkg = raw.packageName.takeIf { raw.source == Source.A11Y }
                         Text(
-                            "${sourceLabel(raw.source)} · ${DateTime.rowTime(raw.capturedAt)}",
+                            "${sourceLabel(raw.source, appPkg)} · ${DateTime.rowTime(raw.capturedAt)}",
                             style = MaterialTheme.typography.labelSmall, color = TextTertiary,
                         )
                         Spacer(Modifier.height(4.dp))
@@ -460,18 +537,88 @@ private fun OriginalMessageRow(raws: List<RawEventEntity>) {
     }
 }
 
+/**
+ * The bottom of the receipt. A live payment: the quiet "Remove this payment" link, which opens the app's
+ * inline two-step confirm (the same Keep / Remove strip as deleting an account — the app has no dialogs).
+ * A removed payment: an Undo when it was removed just now on this screen, else "Put back".
+ */
 @Composable
-private fun RemoveLine(onRemove: () -> Unit) {
-    Box(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
-        Row {
-            Text("Looks wrong? ", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
-            Text(
-                "Remove this payment",
-                style = MaterialTheme.typography.bodySmall, color = TextSecondary, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable(onClick = onRemove),
+private fun RemoveSection(
+    state: RemoveState,
+    onRemove: () -> Unit,
+    onUndo: () -> Unit,
+    onPutBack: () -> Unit,
+) {
+    var confirming by remember { mutableStateOf(false) }
+    if (state == RemoveState.NONE) return
+    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 8.dp)) {
+        when {
+            state == RemoveState.UNDO ->
+                RemovedStrip("Payment removed. It no longer counts in any total.", "Undo", onUndo)
+            state == RemoveState.PUT_BACK ->
+                RemovedStrip("This payment is removed, so it doesn't count in any total.", "Put back", onPutBack)
+            confirming -> RemoveConfirmStrip(
+                onKeep = { confirming = false },
+                onRemove = { confirming = false; onRemove() },
             )
+            else -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Row {
+                    Text("Looks wrong? ", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                    Text(
+                        "Remove this payment",
+                        style = MaterialTheme.typography.bodySmall, color = TextSecondary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { confirming = true },
+                    )
+                }
+            }
         }
     }
+}
+
+/** Inline two-step confirm — mirrors Update balance's account-delete strip: what happens, then Keep / Remove. */
+@Composable
+private fun RemoveConfirmStrip(onKeep: () -> Unit, onRemove: () -> Unit) {
+    Column(Modifier.fillMaxWidth().glassSurface(WalletShapes.medium, blur = false).padding(14.dp)) {
+        Text(
+            "Remove this payment? It stops counting in your totals, your balance and the widgets. " +
+                "You can undo this.",
+            style = MaterialTheme.typography.bodySmall, color = TextSecondary,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            StripAction("Keep", TextSecondary, onKeep)
+            Spacer(Modifier.width(6.dp))
+            StripAction("Remove", RedDebit, onRemove)
+        }
+    }
+}
+
+/** A removed payment's note with its way back (Undo / Put back), in the same strip as the confirm. */
+@Composable
+private fun RemovedStrip(text: String, action: String, onAction: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().glassSurface(WalletShapes.medium, blur = false)
+            .padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text, style = MaterialTheme.typography.bodySmall, color = TextSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(6.dp))
+        StripAction(action, TextPrimary, onAction)
+    }
+}
+
+@Composable
+private fun StripAction(label: String, color: Color, onClick: () -> Unit) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelLarge, color = color,
+        modifier = Modifier.clip(WalletShapes.small).clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
 }
 
 @Composable
@@ -496,6 +643,15 @@ private fun applyCategory(txnId: String, label: String) {
     }
 }
 
-private fun removePayment(txnId: String) {
-    ServiceLocator.appScope.launch { ServiceLocator.repository.discard(txnId) }
+/**
+ * Bring a removed payment back to the status [statusFor] picks from the row as it is NOW (domain/review/
+ * RemovedPayments). Process-scoped so the write survives the screen closing. The guarded restore is a
+ * no-op if the row is no longer removed (e.g. a bank SMS already brought it back).
+ */
+private fun restorePayment(txnId: String, statusFor: (TransactionEntity?) -> TxnStatus?) {
+    ServiceLocator.appScope.launch {
+        val repo = ServiceLocator.repository
+        val status = statusFor(repo.transactionById(txnId)) ?: return@launch
+        repo.restoreRemoved(txnId, status)
+    }
 }

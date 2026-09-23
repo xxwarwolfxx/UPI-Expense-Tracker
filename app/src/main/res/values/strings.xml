@@ -2,6 +2,9 @@
     <string name="app_name">UPI Expense Tracker</string>
     <!-- Short launcher label (home-screen icon); the full app_name is used everywhere else. -->
     <string name="app_name_short">UPI ET</string>
+    <!-- Shown as the service name in system Accessibility settings. A resource (not a literal)
+         so the side-by-side debug build can rename it and not be mistaken for the real one. -->
+    <string name="a11y_service_label">UPI Expense Tracker capture</string>
     <string name="a11y_desc">Reads the confirmation screen in your UPI apps (Google Pay, PhonePe, Paytm, CRED) to record your payments. Text only — no screenshots; nothing leaves your phone.</string>
 
     <!-- Home-screen widgets -->
@@ -9,8 +12,30 @@
     <string name="widget_big_label">UPI ET · Spend (big)</string>
     <string name="widget_large_label">UPI ET · Balance (large)</string>
     <string name="widget_budget_label">UPI ET · Budget (meter)</string>
+    <string name="widget_quota_label">UPI ET · Quotas (week + month)</string>
     <string name="widget_small_desc">This month’s spend, at a glance.</string>
-    <string name="widget_big_desc">This month + this week spend.</string>
+    <string name="widget_big_desc">Spend for today, this week and this month.</string>
     <string name="widget_large_desc">Balance (hidden until you tap) + per-account, with spend.</string>
     <string name="widget_budget_desc">How much of your monthly budget is left — a stack of money that empties as you spend.</string>
+    <string name="widget_quota_desc">How much of your weekly and monthly budgets you have spent, as a percentage.</string>
+    <string name="widget_quota_empty">Set a weekly or monthly budget to see it here</string>
+
+    <!-- Text on the widgets and the capture-off reminder. Resources (not layout literals) so the side-by-side
+         debug build can mark every one of them "TEST" (app/src/debug/res/values/strings.xml): a test copy's
+         widget or reminder must never pass for the real app's. -->
+    <string name="widget_brand">UPI ET</string>
+    <string name="widget_small_caption">Spent this month</string>
+    <string name="widget_budget_left">left this month</string>
+    <string name="widget_budget_over">over budget</string>
+    <!-- Exactly at the monthly cap: the words Home ("At your limit") and Budgets ("Limit reached") use. -->
+    <string name="widget_budget_at_limit">limit reached</string>
+    <!-- Past the cap the number is the percent USED (as on Budgets and the Quota widget), e.g. "120%". -->
+    <string name="widget_budget_over_used">of budget used</string>
+    <string name="widget_budget_empty">Set a monthly budget</string>
+    <string name="widget_setup_title">Set up UPI Expense Tracker</string>
+    <string name="widget_paused_title">Capture paused</string>
+    <string name="widget_paused_hint">Tap to turn it back on</string>
+    <!-- Paused while Settings still shows the switch ON (the service died): the fix is off-and-on. -->
+    <string name="widget_paused_hint_stuck">Switch it off, then on</string>
+    <string name="capture_off_title">Payments aren\'t being recorded</string>
 </resources>

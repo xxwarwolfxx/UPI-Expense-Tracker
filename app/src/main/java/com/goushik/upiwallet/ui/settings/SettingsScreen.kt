@@ -28,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.goushik.upiwallet.ui.theme.WarnColor
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -55,9 +57,11 @@ import com.goushik.upiwallet.ui.theme.TextTertiary
 import com.goushik.upiwallet.ui.theme.WalletShapes
 import com.goushik.upiwallet.ui.theme.glassSurface
 import com.goushik.upiwallet.util.Backup
+import com.goushik.upiwallet.util.CsvExport
 import com.goushik.upiwallet.util.DateTime
 import com.goushik.upiwallet.util.Money
 import com.goushik.upiwallet.util.Permissions
+import com.goushik.upiwallet.util.upiIdsSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -73,8 +77,11 @@ fun SettingsScreen(
     onEditProfile: () -> Unit,
     onOpenLocation: () -> Unit,
     onOpenBudgets: () -> Unit,
+    onOpenRemoved: () -> Unit = {},
 ) {
     val repo = ServiceLocator.repository
+    val removed by repo.observeRemovedTransactions().collectAsStateWithLifecycle(emptyList())
+    val backupStatus by Backup.observeStatus(LocalContext.current).collectAsStateWithLifecycle()
     val txns by repo.observeTransactions().collectAsStateWithLifecycle(emptyList())
     val anchors by repo.observeAnchors().collectAsStateWithLifecycle(emptyList())
     val profile by repo.observeProfile().collectAsStateWithLifecycle(null)
@@ -82,7 +89,8 @@ fun SettingsScreen(
     val (grants, _) = rememberCaptureGrants()
     val ctx = LocalContext.current
 
-    // Restore: let the user pick a UET-backup.json (SAF, no storage permission) and merge it back in.
+    // Restore: let the user pick a UET-backup file (SAF, no storage permission) and merge it back in.
+    // The toast says how old the file was and whether this phone's name / UPI IDs were kept.
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -91,7 +99,7 @@ fun SettingsScreen(
                 val result = runCatching { Backup.restoreFromUri(ctx, ServiceLocator.db, uri) }
                 withContext(Dispatchers.Main) {
                     val msg = result.fold(
-                        onSuccess = { "Restored ${it.transactions} payments from the backup" },
+                        onSuccess = { r -> Backup.restoreSummary(r) },
                         onFailure = { it.message ?: "Couldn't restore that file" },
                     )
                     Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
@@ -110,6 +118,22 @@ fun SettingsScreen(
     val ready = profile != null && anchors.isNotEmpty()
     val showBalance = profile?.showBalance ?: true
     val lastChecked = remember(grants) { HealthStore(ctx).lastCheckedAt() }
+    // "Healthy" only says the switch is on; this says whether payments are actually being recorded.
+    // After an upgrade the recorder has no stamp until the next payment, so fall back to the newest screen
+    // capture already in the ledger rather than claiming nothing was ever recorded.
+    val newestScreenCapture = remember(txns) {
+        txns.filter { it.source.contains("a11y") }.maxOfOrNull { it.timestampCaptured } ?: 0L
+    }
+    val liveness = remember(grants, newestScreenCapture) {
+        com.goushik.upiwallet.domain.CaptureWatch.liveness(ctx).let {
+            it.copy(lastQualifiedAt = maxOf(it.lastQualifiedAt, newestScreenCapture))
+        }
+    }
+    val livenessNow = System.currentTimeMillis()
+    val livenessQuiet = liveness.unmatchedLabel()
+    val confirmedRemoved = remember(removed, txns) {
+        com.goushik.upiwallet.ui.removed.RemovedList.confirmedIds(removed, txns).size
+    }
     val versionName = remember {
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }
             .getOrNull() ?: "1.0"
@@ -128,9 +152,9 @@ fun SettingsScreen(
     ) {
         item { Text("Settings", style = MaterialTheme.typography.headlineLarge, color = TextPrimary) }
 
-        if (!grants.a11y) {
+        if (grants.capturePaused) {
             item {
-                CaptureDownBanner(onFix = { ctx.startActivity(Permissions.accessibilitySettings()) })
+                CaptureDownBanner(onFix = { Permissions.openAccessibilitySettings(ctx) }, stuck = grants.captureStuck)
             }
         }
 
@@ -138,9 +162,13 @@ fun SettingsScreen(
         item {
             SettingsSection("Capture health") {
                 SettingsCard {
+                    // Same "paused" as the widgets and the reminder (CaptureWatch.isPaused), not the raw grant.
                     HealthRow(
-                        "Accessibility (capture)", grants.a11y, first = true,
-                        onClick = { ctx.startActivity(Permissions.accessibilitySettings()) },
+                        "Accessibility (capture)", !grants.capturePaused, first = true,
+                        subtitle = if (livenessQuiet != null) "${liveness.label(livenessNow)} · $livenessQuiet"
+                        else liveness.label(livenessNow),
+                        subtitleWarn = livenessQuiet != null,
+                        onClick = { Permissions.openAccessibilitySettings(ctx) },
                     )
                     HealthRow(
                         "Bank SMS", grants.sms,
@@ -207,8 +235,11 @@ fun SettingsScreen(
             SettingsSection("You") {
                 SettingsCard {
                     SettingsRow("Name", profile?.displayName ?: "—", first = true, chevron = true, onClick = onEditProfile)
+                    // The IDs themselves, not a count — "2 linked" hid two wrong IDs for months. They
+                    // decide what counts as a transfer to yourself, so a wrong one must show at a glance.
+                    val upiIds = profile?.ownVpasCsv.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }
                     SettingsRow(
-                        "UPI IDs", profile?.let { "${it.ownVpaSet().size} linked" } ?: "—",
+                        "UPI IDs", subtitle = upiIdsSummary(upiIds) ?: "None added yet",
                         onClick = onEditProfile, chevron = true,
                     )
                 }
@@ -219,41 +250,65 @@ fun SettingsScreen(
         item {
             SettingsSection("Data") {
                 SettingsCard {
+                    // Same rows All transactions shows (removed payments left out), so the counts agree.
                     SettingsRow(
-                        "Export to CSV", subtitle = "${txns.size} transactions", first = true,
+                        "Export to CSV", subtitle = "${CsvExport.exportable(txns).size} transactions", first = true,
                         chevron = true,
-                        onClick = { com.goushik.upiwallet.util.CsvExport.share(ctx, txns) },
+                        onClick = {
+                            CsvExport.share(
+                                ctx, txns,
+                                ownVpas = profile?.ownVpaSet() ?: emptySet(),
+                                ownNames = profile?.ownNameSet() ?: emptySet(),
+                            )
+                        },
                     )
+                    val bs = backupStatus
                     SettingsRow(
-                        "Back up now", subtitle = "Save a copy to your Downloads",
+                        "Back up now",
+                        subtitle = when {
+                            bs == null || (bs.lastSuccessAt <= 0L && bs.lastFailureAt <= 0L) -> "Save a copy to your Downloads"
+                            bs.failing -> "Last backup failed ${DateTime.ago(bs.lastFailureAt)}. Your previous backup is safe."
+                            else -> "Last backup ${DateTime.ago(bs.lastSuccessAt)}" + (bs.fileName?.let { " · $it" } ?: "")
+                        },
+                        subtitleColor = if (bs?.failing == true) RedDebit else null,
                         chevron = true,
                         onClick = {
                             ServiceLocator.appScope.launch {
-                                val ok = runCatching {
-                                    Backup.writeToDownloads(ctx, ServiceLocator.db)
-                                }.isSuccess
+                                val result = runCatching { Backup.writeToDownloads(ctx, ServiceLocator.db) }
                                 withContext(Dispatchers.Main) {
-                                    val msg = if (ok) {
-                                        "Backup saved to Downloads/${Backup.FILE_NAME}"
-                                    } else {
-                                        "Couldn't save the backup"
-                                    }
+                                    // Name the file MediaStore really wrote: after a reinstall it's
+                                    // "UET-backup (N).json", and the plain name is the old install's.
+                                    val msg = result.fold(
+                                        onSuccess = { Backup.savedMessage(it.fileName, it.keptOlder) },
+                                        onFailure = {
+                                            "Couldn't save the backup. Any earlier backup file is left as it was."
+                                        },
+                                    )
                                     Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
                                 }
                             }
                         },
                     )
                     SettingsRow(
-                        "Restore from a backup", subtitle = "Pick a UET-backup.json file",
+                        "Restore from a backup", subtitle = "Pick your newest UET-backup file",
                         chevron = true,
                         onClick = { restoreLauncher.launch(arrayOf("application/json")) },
+                    )
+                    SettingsRow(
+                        "Removed payments",
+                        subtitle = if (removed.isEmpty()) "Nothing removed"
+                        else "${removed.size} hidden from your totals" +
+                            (if (confirmedRemoved > 0) " · $confirmedRemoved your bank confirmed" else ""),
+                        chevron = true,
+                        onClick = onOpenRemoved,
                     )
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Your data lives only on this phone, so uninstalling clears it. A backup is auto-saved " +
                         "to your Downloads and updates as you spend — keep that file (or copy it to Drive) and " +
-                        "you can restore everything after reinstalling.",
+                        "you can restore everything after reinstalling. It holds the text of your captured " +
+                        "payment screens and bank SMS, and rounded payment locations, so keep it private.",
                     style = MaterialTheme.typography.bodySmall, color = TextTertiary,
                     modifier = Modifier.padding(start = 2.dp),
                 )
@@ -369,6 +424,7 @@ private fun SettingsRow(
     label: String,
     value: String? = null,
     subtitle: String? = null,
+    subtitleColor: Color? = null,
     first: Boolean = false,
     chevron: Boolean = false,
     onClick: (() -> Unit)? = null,
@@ -384,7 +440,7 @@ private fun SettingsRow(
             Text(label, style = MaterialTheme.typography.bodyLarge, color = TextSecondary)
             if (subtitle != null) {
                 Spacer(Modifier.height(2.dp))
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = subtitleColor ?: TextTertiary)
             }
         }
         if (value != null) {
@@ -429,14 +485,31 @@ private fun ToggleRow(
 
 /** Capture-health row: StatusScreen.HealthRow made clickable to its fix deep-link. */
 @Composable
-private fun HealthRow(label: String, ok: Boolean, first: Boolean = false, onClick: () -> Unit) {
+private fun HealthRow(
+    label: String,
+    ok: Boolean,
+    first: Boolean = false,
+    subtitle: String? = null,
+    subtitleWarn: Boolean = false,
+    onClick: () -> Unit,
+) {
     if (!first) Box(Modifier.fillMaxWidth().height(1.dp).background(HairlineColor))
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
+            if (subtitle != null) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    subtitle, style = MaterialTheme.typography.bodySmall,
+                    color = if (subtitleWarn) WarnColor.copy(alpha = 0.9f) else TextSecondary,
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
         if (ok) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconCheck(GreenCredit, size = 14.dp)

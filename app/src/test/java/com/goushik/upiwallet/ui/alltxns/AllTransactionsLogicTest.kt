@@ -5,14 +5,19 @@ import com.goushik.upiwallet.data.Source
 import com.goushik.upiwallet.data.TransactionEntity
 import com.goushik.upiwallet.data.TxnStatus
 import com.goushik.upiwallet.domain.insights.InsightsPeriod
+import com.goushik.upiwallet.domain.insights.PickerDate
+import com.goushik.upiwallet.domain.insights.categoryRollup
 import com.goushik.upiwallet.ui.home.toRowUi
 import com.goushik.upiwallet.util.DateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.TimeZone
 
 /**
  * PURE host unit tests for the All-transactions screen's filter/group engine ([buildAllTxns]), the shared
@@ -133,6 +138,80 @@ class AllTransactionsLogicTest {
         assertTrue(AllTxnsFilters(query = "x").anyActive)
         assertEquals(0, AllTxnsFilters(query = "x").activeCount)   // search isn't a "narrowing filter" count
         assertEquals(2, AllTxnsFilters(direction = DirFilter.SPENT, account = "HDFC").activeCount)
+    }
+
+    // ── a donut slice's drill: the list must add up to the slice ─────────────────
+
+    /** A Food-heavy ledger with every row kind the slice must NOT include next to the ones it must. */
+    private val foodLedger = listOf(
+        txn("food-today", 38_500, atDay(0), category = "Food"),
+        txn("food-last-week", 12_000, atDay(4), category = "Food"),         // 2 Jun — this month
+        txn("food-last-month", 70_000, atDay(40), category = "Food"),       // April — outside the window
+        txn("food-credit", 5_000, atDay(1), direction = Direction.CREDIT, category = "Food"),   // a refund
+        txn("food-to-self", 90_000, atDay(1), payeeVpa = "bram@oksbi", category = "Food"),
+        txn("food-removed", 44_000, atDay(1), status = TxnStatus.DISCARDED, category = "Food"),
+        txn("groceries", 20_000, atDay(0), category = "Groceries"),
+    )
+
+    private fun listed(s: AllTxnsUiState) = s.sections.flatMap { it.rows }
+
+    @Test fun `a month slice drills to exactly the rows that make up the slice`() {
+        val slice = categoryRollup(foodLedger, ownVpas, ownNames, InsightsPeriod.MONTH, now)
+            .single { it.label == "Food" }
+        val drilled = listed(buildAllTxns(
+            foodLedger, ownVpas, ownNames, categoryDrillFilters("Food", InsightsPeriod.MONTH, null), now,
+        ))
+        assertEquals(listOf("food-today", "food-last-week"), drilled.map { it.id })
+        assertEquals(slice.spentPaise, drilled.sumOf { it.amountPaise })
+        assertEquals(slice.count, drilled.size)
+    }
+
+    @Test fun `a custom-range slice drills with the same range`() {
+        val range = PickerDate.of(LocalDate.of(2026, 6, 1)) to PickerDate.of(LocalDate.of(2026, 6, 3))
+        val slice = categoryRollup(
+            foodLedger, ownVpas, ownNames, InsightsPeriod.CUSTOM, now, range.first, range.second,
+        ).single { it.label == "Food" }
+        val filters = categoryDrillFilters("Food", InsightsPeriod.CUSTOM, range)
+        assertEquals(range.first, filters.customStartMs)
+        assertEquals(range.second, filters.customEndMs)
+        val drilled = listed(buildAllTxns(foodLedger, ownVpas, ownNames, filters, now))
+        assertEquals(listOf("food-last-week"), drilled.map { it.id })
+        assertEquals(slice.spentPaise, drilled.sumOf { it.amountPaise })
+    }
+
+    @Test fun `Custom picked without both dates drills as this month, which is what Insights drew`() {
+        val f = categoryDrillFilters("Food", InsightsPeriod.CUSTOM, null)
+        assertEquals(InsightsPeriod.MONTH, f.period)
+        assertEquals(DirFilter.SPENT, f.direction)
+        assertEquals("Food", f.categoryLabel)
+    }
+
+    @Test fun `a drill never carries a custom range for a non-custom period`() {
+        val f = categoryDrillFilters("Food", InsightsPeriod.WEEK, 1L to 2L)
+        assertEquals(InsightsPeriod.WEEK, f.period)
+        assertEquals(null, f.customStartMs)
+        assertEquals(null, f.customEndMs)
+    }
+
+    // ── custom range label: picker values are UTC days ─────────────────────────────
+
+    @Test fun `the custom range pill names the picked days even west of UTC`() {
+        val saved = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+            val tenth = LocalDate.of(2026, 9, 10)
+            val fifteenth = LocalDate.of(2026, 9, 15)
+            val from = PickerDate.of(tenth)
+            val to = PickerDate.of(fifteenth)
+            // Month spelling follows the phone's locale ("Sep"/"Sept"); the DAYS are what this pins.
+            val fmt = DateTimeFormatter.ofPattern("d MMM")
+            val expected = "${tenth.format(fmt)} – ${fifteenth.format(fmt)}"
+            assertEquals(expected, customRangeLabel(from, to))
+            assertEquals(expected, customRangeLabel(to, from))
+            assertEquals("Custom", customRangeLabel(from, null))
+        } finally {
+            TimeZone.setDefault(saved)
+        }
     }
 
     // ── mapper + section label ────────────────────────────────────────────────────

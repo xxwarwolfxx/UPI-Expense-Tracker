@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PAUSED — shown by EVERY widget size while capture is paused (off, or on but not running), in place of the
+     numbers (the owner's call: the loud version — a figure that has stopped counting is worse than no figure).
+     Modelled on widget_setup but tighter: it must fit the 110dp cell (and the 90dp resize floor) without
+     clipping. The whole card taps through to Accessibility settings — the fix, not the app. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/widget_glass"
+    android:padding="10dp">
+
+    <TextView
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:background="@drawable/widget_glyph_bg_amber"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:text="!"
+        android:fontFamily="@font/space_grotesk_bold"
+        android:textColor="#FFFFFFFF"
+        android:textSize="15sp" />
+
+    <!-- Both lines auto-shrink so the 100dp resize floor still reads whole (13sp clips there). -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_horizontal"
+        android:includeFontPadding="false"
+        android:text="@string/widget_paused_title"
+        android:fontFamily="@font/inter_semibold"
+        android:textColor="#FFFFFFFF"
+        android:textSize="13sp"
+        android:autoSizeTextType="uniform"
+        android:autoSizeMinTextSize="9sp"
+        android:autoSizeMaxTextSize="13sp"
+        android:maxLines="1"
+        android:shadowColor="#99000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="6" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:gravity="center_horizontal"
+        android:includeFontPadding="false"
+        android:id="@+id/paused_hint"
+        android:text="@string/widget_paused_hint"
+        android:fontFamily="@font/inter_medium"
+        android:textColor="#FFFFD79A"
+        android:textSize="10sp"
+        android:autoSizeTextType="uniform"
+        android:autoSizeMinTextSize="7sp"
+        android:autoSizeMaxTextSize="10sp"
+        android:maxLines="1"
+        android:shadowColor="#99000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="6" />
+</LinearLayout>

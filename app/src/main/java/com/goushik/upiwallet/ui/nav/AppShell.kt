@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,10 +26,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.goushik.upiwallet.data.TxnStatus
-import com.goushik.upiwallet.di.ServiceLocator
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.goushik.upiwallet.ui.add.AddTransactionScreen
 import com.goushik.upiwallet.ui.alltxns.AllTransactionsScreen
+import com.goushik.upiwallet.ui.alltxns.AllTransactionsViewModel
+import com.goushik.upiwallet.ui.alltxns.AllTxnsFilters
+import com.goushik.upiwallet.ui.alltxns.categoryDrillFilters
 import com.goushik.upiwallet.ui.budget.BudgetsScreen
 import com.goushik.upiwallet.ui.common.AuroraGlassBackground
 import com.goushik.upiwallet.ui.detail.TransactionDetailScreen
@@ -37,6 +40,7 @@ import com.goushik.upiwallet.ui.home.HomeScreen
 import com.goushik.upiwallet.ui.insights.InsightsScreen
 import com.goushik.upiwallet.ui.insights.InsightsView
 import com.goushik.upiwallet.ui.review.ReviewScreen
+import com.goushik.upiwallet.ui.review.ReviewViewModel
 import com.goushik.upiwallet.ui.settings.AddAccountScreen
 import com.goushik.upiwallet.ui.settings.EditProfileScreen
 import com.goushik.upiwallet.ui.settings.LocationSettingsScreen
@@ -47,7 +51,6 @@ import com.goushik.upiwallet.ui.theme.Motion
 import com.goushik.upiwallet.ui.theme.rememberReduceMotion
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
-import kotlinx.coroutines.flow.map
 
 /**
  * Full-screen children presented *over* the current tab (not new bottom-nav destinations) — the same
@@ -55,18 +58,17 @@ import kotlinx.coroutines.flow.map
  * reachable from the Home hero's "↻ Update balance" pill. A Serializable enum, so it survives
  * rotation / process-death directly via `rememberSaveable`.
  */
-private enum class Overlay { UPDATE_BALANCE, ADD_ACCOUNT, EDIT_PROFILE, ADD_TXN, LOCATION_SETTINGS, ALL_TXNS, BUDGETS }
+private enum class Overlay { UPDATE_BALANCE, ADD_ACCOUNT, EDIT_PROFILE, ADD_TXN, LOCATION_SETTINGS, ALL_TXNS, BUDGETS, REMOVED }
 
 /**
  * The post-onboarding host. A hand-rolled route holder (sealed [Route] + `rememberSaveable` + a
  * single [BackHandler]) — the whole "back stack" is: a non-Home tab returns to Home; Home lets the
- * system default (exit) run. The bottom nav overlays every tab and owns its own Review-badge flow so
- * it stays correct regardless of which tab is showing. Transaction detail + the Settings sub-screens
- * slot in as full-screen swaps over the current tab, each owning its own back handling.
+ * system default (exit) run. The bottom nav overlays every tab; its Review dot reads the Review tab's
+ * own state, held here, so it stays correct regardless of which tab is showing. Transaction detail + the
+ * Settings sub-screens slot in as full-screen swaps over the current tab, each owning its own back handling.
  */
 @Composable
 fun AppShell() {
-    val repo = ServiceLocator.repository
     val hazeState = rememberHazeState()
     var route by rememberSaveable(stateSaver = RouteSaver) { mutableStateOf<Route>(Route.Home) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -77,16 +79,17 @@ fun AppShell() {
     // The Chart|Map view mode is hoisted HERE (not inside InsightsContent) so it survives the full-screen
     // detail swap below — opening a payment from the map place-sheet and pressing Back returns to Map.
     var insightsView by rememberSaveable { mutableStateOf(InsightsView.CHART) }
-    // Preset category for the All-transactions overlay (a donut slice deep-links here); null = no filter.
-    var allTxnsCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    // The All-transactions list's VM (Activity-scoped — the same instance the screen resolves). Every OPEN
+    // resets it to the opener's filters HERE, in the click, so a returning visit never inherits last time's
+    // search; coming back from a payment's detail is not an open, so the search survives that.
+    val allTxnsVm: AllTransactionsViewModel = viewModel(factory = AllTransactionsViewModel.Factory)
     val reduceMotion = rememberReduceMotion()
 
-    val hasReviewFlow = remember {
-        repo.observeTransactions().map { txns ->
-            txns.any { it.needsReview && it.status != TxnStatus.DISCARDED }
-        }
-    }
-    val hasReview by hasReviewFlow.collectAsStateWithLifecycle(initialValue = false)
+    // The Review tab's VM (Activity-scoped, handed to the tab below), so the nav dot and the Review screen
+    // are one computation: the dot lights for a "Did this go through?" card as well as a category question.
+    val reviewVm: ReviewViewModel = viewModel(factory = ReviewViewModel.Factory)
+    val reviewState = reviewVm.state.collectAsStateWithLifecycle()
+    val hasReview by remember { derivedStateOf { reviewState.value.hasOpenQuestions } }
 
     // A non-Home tab returns to Home — suppressed while a full-screen child is up (each child owns back).
     BackHandler(enabled = route != Route.Home && detailId == null && overlay == null) { route = Route.Home }
@@ -121,10 +124,14 @@ fun AppShell() {
                         Overlay.ADD_TXN -> AddTransactionScreen(onBack = { overlay = null })
                         Overlay.LOCATION_SETTINGS -> LocationSettingsScreen(onBack = { overlay = null })
                         Overlay.BUDGETS -> BudgetsScreen(onBack = { overlay = null })
+                        Overlay.REMOVED -> com.goushik.upiwallet.ui.removed.RemovedPaymentsScreen(
+                            onBack = { overlay = null },
+                            onOpenTransaction = { detailId = it },
+                        )
                         Overlay.ALL_TXNS -> AllTransactionsScreen(
                             onBack = { overlay = null },
                             onOpenTransaction = { detailId = it },
-                            initialCategory = allTxnsCategory,
+                            vm = allTxnsVm,
                         )
                     }
 
@@ -135,7 +142,7 @@ fun AppShell() {
                             onInsightsDay = { insightsPeriod = InsightsPeriod.DAY; route = Route.Insights },
                             onInsightsWeek = { insightsPeriod = InsightsPeriod.WEEK; route = Route.Insights },
                             onInsightsMonth = { insightsPeriod = InsightsPeriod.MONTH; route = Route.Insights },
-                            onViewAllRecent = { allTxnsCategory = null; overlay = Overlay.ALL_TXNS },
+                            onViewAllRecent = { allTxnsVm.startFrom(AllTxnsFilters()); overlay = Overlay.ALL_TXNS },
                             onOpenBudgets = { overlay = Overlay.BUDGETS },
                         )
                         Route.Insights -> InsightsScreen(
@@ -144,15 +151,23 @@ fun AppShell() {
                             onViewChange = { insightsView = it },
                             onOpenLocationSettings = { overlay = Overlay.LOCATION_SETTINGS },
                             onOpenTransaction = { detailId = it },
-                            onOpenCategory = { cat -> allTxnsCategory = cat; overlay = Overlay.ALL_TXNS },
+                            onOpenCategory = { cat, period, range ->
+                                allTxnsVm.startFrom(categoryDrillFilters(cat, period, range))
+                                overlay = Overlay.ALL_TXNS
+                            },
                             onOpenReview = { route = Route.Review },
                         )
-                        Route.Review -> ReviewScreen(onOpenTransaction = { detailId = it })
+                        Route.Review -> ReviewScreen(
+                            onOpenTransaction = { detailId = it },
+                            onFixUpiIds = { overlay = Overlay.EDIT_PROFILE },
+                            vm = reviewVm,
+                        )
                         Route.Settings -> SettingsScreen(
                             onUpdateBalance = { overlay = Overlay.UPDATE_BALANCE },
                             onEditProfile = { overlay = Overlay.EDIT_PROFILE },
                             onOpenLocation = { overlay = Overlay.LOCATION_SETTINGS },
                             onOpenBudgets = { overlay = Overlay.BUDGETS },
+                            onOpenRemoved = { overlay = Overlay.REMOVED },
                         )
                     }
                 }

@@ -17,25 +17,29 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.goushik.upiwallet.data.BalanceAnchorEntity
 import com.goushik.upiwallet.di.ServiceLocator
+import com.goushik.upiwallet.domain.BalanceCalculator
 import com.goushik.upiwallet.ui.common.FieldLabel
 import com.goushik.upiwallet.ui.common.GhostButton
 import com.goushik.upiwallet.ui.common.IconChevronLeft
 import com.goushik.upiwallet.ui.common.IconInfo
 import com.goushik.upiwallet.ui.common.PrimaryButton
 import com.goushik.upiwallet.ui.common.WalletTextField
+import com.goushik.upiwallet.ui.theme.RedDebit
 import com.goushik.upiwallet.ui.theme.TextPrimary
 import com.goushik.upiwallet.ui.theme.TextSecondary
 import com.goushik.upiwallet.ui.theme.TextTertiary
@@ -55,12 +59,7 @@ private fun prefillOf(paise: Long): String {
     return if (frac == 0L) rupees else rupees + ".%02d".format(frac)
 }
 
-private sealed interface AnchorsState {
-    data object Loading : AnchorsState
-    data class Loaded(val anchors: List<BalanceAnchorEntity>) : AnchorsState
-}
-
-private class FieldState(val label: String, initial: String) {
+private class FieldState(val anchorId: String, val label: String, val baselinePaise: Long, initial: String) {
     var text by mutableStateOf(initial)
 }
 
@@ -74,18 +73,18 @@ private class FieldState(val label: String, initial: String) {
 fun UpdateBalanceScreen(onBack: () -> Unit, onAddAccount: () -> Unit) {
     BackHandler { onBack() }
 
-    val state by produceState<AnchorsState>(AnchorsState.Loading) {
-        value = AnchorsState.Loaded(ServiceLocator.repository.anchors())
-    }
+    // Live (not one-shot) so a per-account delete re-seeds the form; null = first emission pending.
+    val anchors by ServiceLocator.repository.observeAnchors()
+        .collectAsStateWithLifecycle(initialValue = null)
 
     Column(
         Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
         TopBar(onBack)
-        when (val s = state) {
-            AnchorsState.Loading -> CenterNote("Loading…")
-            is AnchorsState.Loaded -> Body(s.anchors, onBack, onAddAccount)
+        when (val s = anchors) {
+            null -> CenterNote("Loading…")
+            else -> Body(s, onBack, onAddAccount)
         }
         Spacer(Modifier.height(28.dp))
     }
@@ -111,12 +110,15 @@ private fun TopBar(onBack: () -> Unit) {
 @Composable
 private fun Body(anchors: List<BalanceAnchorEntity>, onBack: () -> Unit, onAddAccount: () -> Unit) {
     // Field state seeded from the loaded anchors (label + pre-filled rupee text); user edits live here.
-    // Keyed on `anchors` so it re-seeds if they change; synchronous so the form never renders blank.
+    // Keyed on `anchors` so it re-seeds when they change (e.g. after a delete — unsaved edits in other
+    // fields reset then, accepted); synchronous so the form never renders blank.
     val fields = remember(anchors) {
         mutableStateListOf<FieldState>().apply {
-            anchors.forEach { add(FieldState(it.accountLabel, prefillOf(it.baselinePaise))) }
+            anchors.forEach { add(FieldState(it.id, it.accountLabel, it.baselinePaise, prefillOf(it.baselinePaise))) }
         }
     }
+    // The account whose ✕ was tapped — its inline "Remove?" strip is showing. Cleared on any change.
+    var confirmingDelete by remember(anchors) { mutableStateOf<String?>(null) }
 
     Spacer(Modifier.height(12.dp))
     Text("What's the real balance?", style = MaterialTheme.typography.headlineLarge, color = TextPrimary)
@@ -139,11 +141,34 @@ private fun Body(anchors: List<BalanceAnchorEntity>, onBack: () -> Unit, onAddAc
 
     fields.forEachIndexed { i, f ->
         if (i > 0) Spacer(Modifier.height(18.dp))
-        FieldLabel(f.label)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { FieldLabel(f.label) }
+            Text(
+                "✕",
+                style = MaterialTheme.typography.labelLarge,
+                color = TextTertiary,
+                modifier = Modifier
+                    .clip(WalletShapes.small)
+                    .clickable { confirmingDelete = f.anchorId }
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
         WalletTextField(
             f.text, { f.text = moneyFilter(it) }, prefix = "₹", placeholder = "0",
             keyboardType = KeyboardType.Decimal, textStyle = MaterialTheme.typography.headlineMedium,
         )
+        if (confirmingDelete == f.anchorId) {
+            Spacer(Modifier.height(10.dp))
+            DeleteConfirmStrip(
+                label = f.label,
+                baselinePaise = f.baselinePaise,
+                onKeep = { confirmingDelete = null },
+                onRemove = {
+                    confirmingDelete = null
+                    deleteAccount(f.anchorId)
+                },
+            )
+        }
     }
 
     Spacer(Modifier.height(14.dp))
@@ -175,6 +200,59 @@ private fun Body(anchors: List<BalanceAnchorEntity>, onBack: () -> Unit, onAddAc
         },
         enabled = valid,
     )
+}
+
+/** Inline two-step confirm (the app deliberately has no dialogs): what leaves the wallet, and that
+ *  payment history is untouched. */
+@Composable
+private fun DeleteConfirmStrip(
+    label: String,
+    baselinePaise: Long,
+    onKeep: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().glassSurface(WalletShapes.medium, blur = false).padding(14.dp)) {
+        Text(
+            "Remove $label? Its ${Money.format(baselinePaise)} leaves your available balance. " +
+                "Payments already recorded stay in your history.",
+            style = MaterialTheme.typography.bodySmall, color = TextSecondary,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Text(
+                "Keep",
+                style = MaterialTheme.typography.labelLarge, color = TextSecondary,
+                modifier = Modifier.clip(WalletShapes.small).clickable(onClick = onKeep)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "Remove",
+                style = MaterialTheme.typography.labelLarge, color = RedDebit,
+                modifier = Modifier.clip(WalletShapes.small).clickable(onClick = onRemove)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Delete ONE account atomically: drop its anchor and, when it held the newest stamp, re-stamp the
+ * latest remaining anchor to the old cutoff ([BalanceCalculator.anchorsAfterDelete]) — so Available
+ * drops by exactly the removed baseline and the balance window never moves. Process-scoped so the
+ * write survives the composable being swapped out.
+ */
+private fun deleteAccount(anchorId: String) {
+    ServiceLocator.appScope.launch {
+        val repo = ServiceLocator.repository
+        repo.inTransaction {
+            val before = repo.anchors()
+            val after = BalanceCalculator.anchorsAfterDelete(before, anchorId) ?: return@inTransaction
+            repo.deleteAnchor(anchorId)
+            val stampBefore = before.associate { it.id to it.anchoredAt }
+            after.filter { stampBefore[it.id] != it.anchoredAt }.forEach { repo.upsertAnchor(it) }
+        }
+    }
 }
 
 @Composable

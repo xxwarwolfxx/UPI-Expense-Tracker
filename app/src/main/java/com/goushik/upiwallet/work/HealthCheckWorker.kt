@@ -10,13 +10,19 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.goushik.upiwallet.domain.CaptureHealth
+import com.goushik.upiwallet.domain.CaptureWatch
 import com.goushik.upiwallet.domain.HealthStore
 import java.util.concurrent.TimeUnit
 
 /**
- * Daily heartbeat: re-reads the capture permission set and records a snapshot, so a silently-revoked
- * permission (OS kill, OEM auto-revert) is detected even when the app is closed. Posts NOTHING — the
- * regression surfaces only as an in-app warning on the Status screen (the product stays silent).
+ * Daily check (plus one run soon after launch): re-reads the capture permission set and records a
+ * snapshot, so a silently-revoked permission (an OEM auto-revert, say) is noticed without the app being
+ * on screen. Since 2026-09-15 it also runs the [CaptureWatch] tick, so an outage found here posts the
+ * "capture paused" reminder and flips the widgets (the 15-minute ReconcileWorker sweep does the same).
+ *
+ * The limit, verified on the device: a Force stop (from App info, or a phone "cleaner" that force-stops)
+ * cancels this job along with everything else the app scheduled, and Android runs none of it until the
+ * app is opened again. So that outage is caught on the next app open, not while the app stays closed.
  */
 class HealthCheckWorker(appContext: Context, params: WorkerParameters) :
     CoroutineWorker(appContext, params) {
@@ -25,6 +31,7 @@ class HealthCheckWorker(appContext: Context, params: WorkerParameters) :
         val snap = CaptureHealth.snapshot(applicationContext)
         HealthStore(applicationContext).save(snap)
         Log.d(TAG, "health: a11y=${snap.a11yEnabled} sms=${snap.smsGranted} batt=${snap.batteryExempt}")
+        CaptureWatch.tick(applicationContext)
         Result.success()
     } catch (t: Throwable) {
         Log.w(TAG, "health check failed", t)

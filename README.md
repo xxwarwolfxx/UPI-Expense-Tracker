@@ -34,7 +34,8 @@ cloud, no ads, no tracking. Everything stays on your phone.
   automatic categories (Food, Groceries, Transport, Bills, and so on).
 - **Available-balance wallet.** A manual baseline minus your captured spends; re-anchor to the
   real figure any time.
-- **Home-screen widgets.** Spend and available-balance widgets, plus a monthly-budget widget.
+- **Home-screen widgets.** Spend and available-balance widgets, a monthly-budget widget, and a
+  week/month budget-progress widget. If capture is switched off, every widget says so.
 - **Budgets.** Set a monthly cap and watch it fill on the home card and a widget.
 
 ## Privacy — nothing leaves your phone
@@ -54,19 +55,20 @@ cloud, no ads, no tracking. Everything stays on your phone.
 | Accessibility Service | Read the UPI app's payment-confirmation screen to capture a payment | Required for auto-capture; you can also add payments manually |
 | `RECEIVE_SMS` | Receive incoming bank payment SMS (reference number, credits) — the delivery broadcast only, not your inbox | Required for SMS capture |
 | `ACCESS_FINE/COARSE_LOCATION` | Pin *where* a payment happened, for the optional Insights map | Opt-in; no background location |
-| `POST_NOTIFICATIONS` | Optional budget-nudge alerts | Opt-in |
+| `POST_NOTIFICATIONS` | A reminder when payment capture is switched off, plus optional budget nudges | Asked once |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Keep the capture service alive in the background | Opt-in |
 
 ## Install
 
 - **Direct / Obtainium** — grab the signed APK from [Releases](../../releases), or add this repo in
   [Obtainium](https://github.com/ImranR98/Obtainium) for automatic updates.
-- **IzzyOnDroid** *(coming soon)* — add the [IzzyOnDroid](https://android.izzysoft.de/) repository
-  in your F-Droid client.
-- **F-Droid** *(under review)* — will appear in the main F-Droid repository once the submission is
-  merged.
+- **F-Droid** — [f-droid.org/packages/com.goushik.upiwallet](https://f-droid.org/packages/com.goushik.upiwallet/).
+  F-Droid rebuilds it from this source and ships the same developer-signed APK, so you can switch
+  between F-Droid and the Releases APK without losing data.
 
-After installing, enable the Accessibility capture service and grant SMS access when prompted.
+After installing, enable the Accessibility capture service and grant SMS access when prompted. A
+**Force stop** in App info, or a phone cleaner that closes apps, switches capture off; open the app
+once afterwards and it tells you what to turn back on.
 
 ## Build it yourself
 

@@ -9,6 +9,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -131,11 +132,63 @@ data class SpendWindow(val startMs: Long, val endMs: Long) {
 }
 
 /**
+ * The spend rows of the CURRENT [period] — [isSpend] inside the bounded [spendWindow]. This is the one
+ * filter Home's tiles, every widget and every budget sum, and it is the same window Insights draws, so
+ * all four show the same number for the same period. It is bounded on BOTH sides on purpose: a row dated
+ * in the future (a mis-picked manual date) must not inflate "today" on Home while Budgets and Insights
+ * leave it out — the owner stops trusting a total the moment two screens disagree.
+ */
+fun spendInPeriod(
+    txns: List<TransactionEntity>,
+    ownVpas: Set<String>,
+    ownNames: Set<String>,
+    period: InsightsPeriod,
+    nowMs: Long,
+): Sequence<TransactionEntity> {
+    val win = spendWindow(period, nowMs)
+    return txns.asSequence().filter { isSpend(it, ownVpas, ownNames) && win.contains(it.timestampEvent) }
+}
+
+/**
+ * The Material3 date picker's day values. The picker hands back (and is seeded with) the picked day as
+ * **00:00 UTC** of that day, whatever the phone's zone. Reading that instant in the device zone lands on
+ * the previous day anywhere west of UTC (New York: 10 Sep 00:00 UTC is 9 Sep 20:00), and seeding the
+ * picker with "now" pre-selects YESTERDAY in India between 00:00 and 05:29 (the UTC date hasn't turned
+ * yet). So picker values are only ever converted here, always through UTC.
+ */
+object PickerDate {
+    /** The calendar day a picker value stands for. */
+    fun toLocalDate(pickerMs: Long): LocalDate = Instant.ofEpochMilli(pickerMs).atZone(ZoneOffset.UTC).toLocalDate()
+
+    /** The picker value for a calendar day. */
+    fun of(date: LocalDate): Long = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+    /** The picker value for the device's TODAY — what the Add screen pre-selects. */
+    fun today(nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): Long = of(localDate(nowMs, zone))
+
+    /** True for today and earlier — a payment you are logging has already happened. */
+    fun isOnOrBeforeToday(pickerMs: Long, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): Boolean =
+        !toLocalDate(pickerMs).isAfter(localDate(nowMs, zone))
+
+    /**
+     * The event time for a manual entry: the picked day at the current local time of day, so picking
+     * today gives "now" exactly and an earlier day keeps its natural place in the day's order. No pick
+     * (null) is "now".
+     */
+    fun eventMsFor(pickerMs: Long?, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): Long {
+        if (pickerMs == null) return nowMs
+        val timeOfDay = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalTime()
+        return toLocalDate(pickerMs).atTime(timeOfDay).atZone(zone).toInstant().toEpochMilli()
+    }
+}
+
+/**
  * The window for a period — the SAME boundaries [buildPlan] uses for its bucket grid (it derives its
  * range from this), so the map's membership test is identical to the chart's. WEEK/MONTH reuse
  * [DateTime.startOfWeekMs]/[DateTime.startOfMonthMs] (shared with Home); CUSTOM tolerates a reversed
  * pair and makes the picked end day inclusive (+1 day exclusive), falling back to the MONTH window
- * when either bound is missing.
+ * when either bound is missing. [customStartMs]/[customEndMs] are DATE-PICKER values (00:00 UTC of the
+ * picked day, see [PickerDate]); the window itself runs from local midnight to local midnight in [zone].
  */
 fun spendWindow(
     period: InsightsPeriod,
@@ -164,8 +217,8 @@ fun spendWindow(
         if (customStartMs == null || customEndMs == null) {
             spendWindow(InsightsPeriod.MONTH, nowMs, null, null, zone)
         } else {
-            val loDate = localDate(minOf(customStartMs, customEndMs), zone)
-            val hiDateExclusive = localDate(maxOf(customStartMs, customEndMs), zone).plusDays(1)
+            val loDate = PickerDate.toLocalDate(minOf(customStartMs, customEndMs))
+            val hiDateExclusive = PickerDate.toLocalDate(maxOf(customStartMs, customEndMs)).plusDays(1)
             SpendWindow(atDayStartMs(loDate, zone), atDayStartMs(hiDateExclusive, zone))
         }
 }
@@ -289,15 +342,15 @@ private fun buildPlan(
 }
 
 /**
- * CUSTOM: [startOfDay(customStart) .. startOfDay(customEnd)+1day) so the picked end day is inclusive.
+ * CUSTOM: [picked start day 00:00 .. picked end day + 1, 00:00) local, so the picked end day is inclusive.
  * Adaptive granularity — span ≤ 62 days → daily buckets, else monthly. ~5 sparse, deduped labels.
  */
 private fun buildCustomPlan(customStartMs: Long, customEndMs: Long, nowMs: Long, zone: ZoneId): BucketPlan {
     // Tolerate a reversed pair. Range comes from the shared window so it can't drift from the map.
     val loMs = minOf(customStartMs, customEndMs)
     val hiMs = maxOf(customStartMs, customEndMs)
-    val startDate = localDate(loMs, zone)
-    val endDateInclusive = localDate(hiMs, zone)
+    val startDate = PickerDate.toLocalDate(loMs)          // picker values → the picked calendar days
+    val endDateInclusive = PickerDate.toLocalDate(hiMs)
     val endExclusiveDate = endDateInclusive.plusDays(1)
     val win = spendWindow(InsightsPeriod.CUSTOM, nowMs, customStartMs, customEndMs, zone)
     val rangeStartMs = win.startMs

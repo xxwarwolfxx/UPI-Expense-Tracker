@@ -39,8 +39,9 @@ object DuplicateDetection {
             .minByOrNull { it.timestampEvent }
     }
 
-    /** Lenient identity for the dup guard: VPA localpart, else the lowercased payee name. */
-    private fun payeeKey(t: TransactionEntity): String? =
+    /** Lenient identity for the dup guard: VPA localpart, else the lowercased payee name.
+     *  Also the payee half of [com.goushik.upiwallet.util.Backup]'s restore content-dedupe. */
+    internal fun payeeKey(t: TransactionEntity): String? =
         t.payeeVpa?.substringBefore('@')?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
             ?: t.payeeName?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
 }

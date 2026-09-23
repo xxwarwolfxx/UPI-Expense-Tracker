@@ -23,8 +23,9 @@ class UiPrefsStore(ctx: Context) {
         fancyCardState.value = value
     }
 
-    // Budget alerts (Phase 2) — the app's only user-facing notification, so OFF by default (opt-in, like
-    // AI + location). Fronted by a StateFlow so the Budgets screen toggle reacts instantly.
+    // Budget alerts (Phase 2): opt-in, so OFF by default. (The capture-off reminder is the app's other
+    // notification, and that one is not opt-in.) Fronted by a StateFlow so the Budgets screen toggle reacts
+    // instantly.
     private val budgetAlertsState = MutableStateFlow(prefs.getBoolean(KEY_BUDGET_ALERTS, false))
     val budgetAlerts: StateFlow<Boolean> = budgetAlertsState.asStateFlow()
 
@@ -50,8 +51,17 @@ class UiPrefsStore(ctx: Context) {
         donationCountState.value = next
     }
 
+    // The one-time POST_NOTIFICATIONS ask on Home (for the "capture paused" reminder). Asked once per
+    // install, whatever the answer — a denied user is not nagged again; the system channel is the switch.
+    fun notificationsPrompted(): Boolean = prefs.getBoolean(KEY_NOTIF_PROMPTED, false)
+
+    fun markNotificationsPrompted() {
+        prefs.edit().putBoolean(KEY_NOTIF_PROMPTED, true).apply()
+    }
+
     companion object {
         private const val KEY_FANCY_CARD = "fancy_card"
+        private const val KEY_NOTIF_PROMPTED = "notif_prompted"
         private const val KEY_BUDGET_ALERTS = "budget_alerts"
         private const val KEY_DONATED = "has_donated" // legacy boolean — read only to seed the count below
         private const val KEY_DONATION_COUNT = "donation_count"

@@ -4,8 +4,10 @@
 
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Optional budget alerts (Phase 2): the app's only user-facing notification, posted ONLY after the
-         user opts in (Settings → Budgets → "Nudge me") and grants this runtime permission. -->
+    <!-- The app posts two notifications, and asks for this once, on Home (Android 13+):
+         1. the "Payments aren't being recorded" reminder when capture is switched off (not opt-in, its own
+            muteable channel; see CaptureAlerts);
+         2. the budget nudge, posted ONLY after the user opts in (Settings → Budgets → "Nudge me"). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- The app is fully offline by design (zero network egress). Actively strip INTERNET from the merged
          manifest so no dependency AAR can silently re-add it — "nothing leaves your phone" is enforced here. -->
@@ -65,7 +67,7 @@
         <service
             android:name=".capture.A11yCaptureService"
             android:exported="false"
-            android:label="UPI Expense Tracker capture"
+            android:label="@string/a11y_service_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -87,7 +89,7 @@
         <!-- CSV export shares a cache file via a content:// URI (Settings → Data → Export to CSV). -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.goushik.upiwallet.fileprovider"
+            android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
@@ -145,6 +147,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_budget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WalletWidgetQuota"
+            android:exported="false"
+            android:label="@string/widget_quota_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quota_info" />
         </receiver>
     </application>
 

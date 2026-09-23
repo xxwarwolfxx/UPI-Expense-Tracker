@@ -22,8 +22,8 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun byId(id: String): TransactionEntity?
 
-    /** Observe a single row so the detail screen reflects live edits (AI sweep, reconciler merge, a
-     *  category fix, a discard) without being re-opened. */
+    /** Observe a single row so the detail screen reflects live edits (categorizer sweep, reconciler merge,
+     *  a category fix, a discard) without being re-opened. */
     @Query("SELECT * FROM transactions WHERE id = :id")
     fun observeById(id: String): Flow<TransactionEntity?>
 
@@ -61,11 +61,16 @@ interface TransactionDao {
      * a11y rows eligible to merge with an arriving SMS: same amount + direction, no RRN yet, not
      * DISCARDED, captured within the one-sided window [from, to] (the SMS is always *later* than the
      * a11y row). Ordered nearest-in-time to the SMS pivot so the reconciler picks the closest one.
+     *
+     * Screen captures ONLY (`source = 'a11y'`): an SMS-only row (a card spend, a no-RRN debit) or a manual
+     * entry is a payment of its own, and letting a later UPI alert claim it turned two real payments into
+     * one row.
      */
     @Query(
         """
         SELECT * FROM transactions
         WHERE amountPaise = :amount AND direction = :direction
+          AND source = 'a11y'
           AND rrn IS NULL AND status != 'DISCARDED'
           AND timestampEvent BETWEEN :from AND :to
         ORDER BY ABS(timestampEvent - :pivot) ASC
@@ -112,11 +117,21 @@ interface TransactionDao {
     @Query("UPDATE transactions SET status = :newStatus, rrn = :rrn, source = 'a11y+sms' WHERE id = :id")
     suspend fun overrideStatus(id: String, newStatus: TxnStatus, rrn: String): Int
 
-    /** A DISCARDED a11y row that a later SMS proves was actually successful. */
+    /** The a11y episode machine's status write. Guarded on `rrn IS NULL`: once a bank SMS has merged
+     *  the row it carries the bank's own proof, and a late screen-read must never overwrite that —
+     *  the terminal window (3 min) spans the SMS arrival band (~90s), so the race is real, and a
+     *  DISCARD landing on an SMS-confirmed row would silently delete a genuine payment from every
+     *  total (findDiscardedMatch can't flip it back — it requires rrn IS NULL). Returns rows changed;
+     *  0 = the bank already claimed it. */
+    @Query("UPDATE transactions SET status = :status, timestampCaptured = :now WHERE id = :id AND rrn IS NULL")
+    suspend fun setStatusIfUnclaimed(id: String, status: TxnStatus, now: Long): Int
+
+    /** A DISCARDED a11y row that a later SMS proves was actually successful. Screen captures only, as in
+     *  [findPendingMatches]: a row the user removed from an SMS or by hand is not one to bring back. */
     @Query(
         """
         SELECT * FROM transactions
-        WHERE status = 'DISCARDED' AND rrn IS NULL
+        WHERE status = 'DISCARDED' AND rrn IS NULL AND source = 'a11y'
           AND amountPaise = :amount AND direction = :direction
           AND timestampEvent BETWEEN :from AND :to
         ORDER BY ABS(timestampEvent - :pivot) ASC LIMIT 1
@@ -142,4 +157,45 @@ interface TransactionDao {
      *  exclude DISCARDED). The raw capture is kept, so this is reversible. */
     @Query("UPDATE transactions SET status = 'DISCARDED' WHERE id = :id")
     suspend fun discard(id: String): Int
+
+    // ── Review tools: removed payments, sample-row cleanup, backed-out screens ──
+
+    /** Every removed (DISCARDED) row, newest first — what a "Removed payments" list shows. */
+    @Query("SELECT * FROM transactions WHERE status = 'DISCARDED' ORDER BY timestampEvent DESC")
+    fun observeDiscarded(): Flow<List<TransactionEntity>>
+
+    /**
+     * Bring a removed row back (Undo, or Put back). Guarded on the row STILL being DISCARDED: while it sat
+     * removed, a matching bank SMS may already have flipped it to CONFIRMED (findDiscardedMatch →
+     * overrideStatus), and a restore must never overwrite that. Bank proof also wins here: a row carrying
+     * an RRN comes back CONFIRMED whatever [fallback] says (see domain/review/RemovedPayments).
+     * Returns rows changed; 0 = it wasn't removed any more.
+     */
+    @Query(
+        "UPDATE transactions SET status = CASE WHEN rrn IS NOT NULL THEN 'CONFIRMED' ELSE :fallback END " +
+            "WHERE id = :id AND status = 'DISCARDED'",
+    )
+    suspend fun restoreDiscarded(id: String, fallback: TxnStatus): Int
+
+    /** Soft-remove several rows at once (the sample-row cleanup). Same reversibility as [discard]. */
+    @Query("UPDATE transactions SET status = 'DISCARDED' WHERE id IN (:ids) AND status != 'DISCARDED'")
+    suspend fun discardAll(ids: List<String>): Int
+
+    /** Which UPI app each screen-captured row came from: the package on its a11y raw capture. SMS raws are
+     *  left out on purpose — they keep the SENDER in the same column. A small projection, not the payloads. */
+    @Query(
+        "SELECT txnId, packageName FROM raw_events " +
+            "WHERE source = 'a11y' AND txnId IS NOT NULL AND packageName IS NOT NULL",
+    )
+    fun observeCaptureApps(): Flow<List<CaptureApp>>
+
+    /** One-shot [observeCaptureApps]. */
+    @Query(
+        "SELECT txnId, packageName FROM raw_events " +
+            "WHERE source = 'a11y' AND txnId IS NOT NULL AND packageName IS NOT NULL",
+    )
+    suspend fun captureApps(): List<CaptureApp>
 }
+
+/** One screen-captured row and the package of the UPI app its screen came from (a raw_events projection). */
+data class CaptureApp(val txnId: String?, val packageName: String?)

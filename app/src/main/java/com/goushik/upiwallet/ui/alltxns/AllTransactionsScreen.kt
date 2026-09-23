@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,9 +72,6 @@ import com.goushik.upiwallet.ui.theme.Violet500
 import com.goushik.upiwallet.ui.theme.WalletShapes
 import com.goushik.upiwallet.ui.theme.White
 import com.goushik.upiwallet.ui.theme.glassSurface
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /**
  * The full transaction history reached from Home's "View all →" — a full-screen child presented over Home
@@ -87,21 +85,22 @@ import java.time.format.DateTimeFormatter
 fun AllTransactionsScreen(
     onBack: () -> Unit,
     onOpenTransaction: (String) -> Unit,
-    initialCategory: String? = null,
+    // The opener (AppShell) resets this VM's filters when it OPENS the list ([AllTransactionsViewModel.startFrom]);
+    // this screen never resets them itself, so coming back from a payment's detail keeps the search.
     vm: AllTransactionsViewModel = viewModel(factory = AllTransactionsViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    // Deep-link from the Insights donut: preset the category filter once on entry.
-    androidx.compose.runtime.LaunchedEffect(initialCategory) {
-        if (initialCategory != null) vm.setCategory(initialCategory)
-    }
     // The search text is held HERE (not read back from the VM flow) so the field never lags a keystroke
-    // behind the async state round-trip; each edit pushes into the VM for the actual filtering.
-    var query by rememberSaveable { mutableStateOf("") }
+    // behind the async state round-trip; each edit pushes into the VM for the actual filtering. It STARTS
+    // from the VM's query, so the box always shows the search the list is actually filtered by.
+    var query by rememberSaveable { mutableStateOf(vm.current.query) }
+    // After process death the box's text is restored but the VM is new — push it back so they agree.
+    LaunchedEffect(Unit) { if (vm.current.query != query) vm.setQuery(query) }
     var openSheet by remember { mutableStateOf<FilterKind?>(null) }
     var picking by remember { mutableStateOf<DateField?>(null) }
-    var customStart by rememberSaveable { mutableStateOf<Long?>(null) }
-    var customEnd by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Date-picker values (00:00 UTC of the picked day), seeded from a drilled-in custom range.
+    var customStart by rememberSaveable { mutableStateOf(vm.current.customStartMs) }
+    var customEnd by rememberSaveable { mutableStateOf(vm.current.customEndMs) }
 
     AllTransactionsContent(
         state = state,
@@ -421,15 +420,6 @@ private fun periodLabel(f: AllTxnsFilters): String = when (f.period) {
     InsightsPeriod.YEAR -> "This year"
     InsightsPeriod.CUSTOM -> customRangeLabel(f.customStartMs, f.customEndMs)
     null -> "When"
-}
-
-private val RANGE_FMT = DateTimeFormatter.ofPattern("d MMM")
-private fun customRangeLabel(startMs: Long?, endMs: Long?): String {
-    if (startMs == null || endMs == null) return "Custom"
-    val z = ZoneId.systemDefault()
-    val lo = Instant.ofEpochMilli(minOf(startMs, endMs)).atZone(z).format(RANGE_FMT)
-    val hi = Instant.ofEpochMilli(maxOf(startMs, endMs)).atZone(z).format(RANGE_FMT)
-    return "$lo – $hi"
 }
 
 // ── Preview (sample data; the real screen binds to AllTransactionsViewModel) ──

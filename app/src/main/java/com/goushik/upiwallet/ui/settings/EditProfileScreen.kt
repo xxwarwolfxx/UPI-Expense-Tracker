@@ -48,6 +48,7 @@ import com.goushik.upiwallet.ui.theme.TextTertiary
 import com.goushik.upiwallet.ui.theme.Violet500
 import com.goushik.upiwallet.ui.theme.WalletShapes
 import com.goushik.upiwallet.ui.theme.glassSurface
+import com.goushik.upiwallet.util.withPendingUpiId
 import kotlinx.coroutines.launch
 
 private sealed interface ProfileState {
@@ -131,8 +132,7 @@ private fun EditProfileBody(profile: UserProfileEntity?, onBack: () -> Unit) {
         }
         Spacer(Modifier.width(10.dp))
         AddButton(enabled = newVpa.isNotBlank()) {
-            val v = newVpa.trim()
-            if (v.isNotEmpty() && v !in vpas) vpas = vpas + v
+            vpas = withPendingUpiId(vpas, newVpa)
             newVpa = ""
         }
     }
@@ -142,14 +142,19 @@ private fun EditProfileBody(profile: UserProfileEntity?, onBack: () -> Unit) {
     Spacer(Modifier.height(28.dp))
     PrimaryButton(
         "Save",
-        enabled = name.isNotBlank(),
+        // Name is optional (onboarding's identity step is skippable) — a skipper must be able to come
+        // here later and add just their VPAs without inventing a name.
+        enabled = true,
         onClick = {
+            // An ID typed in the box but never "Add"-ed is saved too — Save is the natural tap, and
+            // dropping it silently would leave that account's transfers counted as spending.
+            val toSave = withPendingUpiId(vpas, newVpa)
             // Process-scoped so the write survives this composable being swapped out on back-nav.
             ServiceLocator.appScope.launch {
                 ServiceLocator.repository.upsertProfile(
                     UserProfileEntity(
                         displayName = name.trim(),
-                        ownVpasCsv = vpas.joinToString(","),
+                        ownVpasCsv = toSave.joinToString(","),
                         // CRITICAL: carry the existing onboardedAt; nulling it re-triggers onboarding.
                         onboardedAt = profile?.onboardedAt ?: System.currentTimeMillis(),
                         // …and the wallet mode, or editing the profile would silently reset it to balance.

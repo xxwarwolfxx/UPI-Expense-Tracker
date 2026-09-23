@@ -22,11 +22,13 @@ import com.goushik.upiwallet.ui.theme.TextPrimary
 import com.goushik.upiwallet.ui.theme.WarnColor
 
 /**
- * The concrete "capture paused" banner — shown wherever the primary capture path (Accessibility) is
- * off. Tapping it routes to Accessibility settings via [onFix]. Shared by the Status screen and Home.
+ * The concrete "capture paused" banner — shown wherever capture is paused, by the same definition the
+ * widgets and the reminder use ([com.goushik.upiwallet.domain.CaptureWatch.isPaused], via
+ * [CaptureGrants.capturePaused]). Tapping it routes to Accessibility settings via [onFix]. Shared by Home
+ * and Settings.
  */
 @Composable
-fun CaptureDownBanner(onFix: () -> Unit, modifier: Modifier = Modifier) {
+fun CaptureDownBanner(onFix: () -> Unit, modifier: Modifier = Modifier, stuck: Boolean = false) {
     Row(
         modifier
             .fillMaxWidth()
@@ -40,7 +42,8 @@ fun CaptureDownBanner(onFix: () -> Unit, modifier: Modifier = Modifier) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(WarnColor))
         Spacer(Modifier.width(11.dp))
         Text(
-            "Capture is paused — Accessibility is off",
+            if (stuck) "Capture has stopped — switch it off and on again"
+            else "Capture is paused — Accessibility is off",
             style = MaterialTheme.typography.bodyMedium, color = TextPrimary,
             modifier = Modifier.weight(1f),
         )

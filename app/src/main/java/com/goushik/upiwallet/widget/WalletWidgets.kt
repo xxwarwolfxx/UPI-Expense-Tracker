@@ -6,10 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import com.goushik.upiwallet.di.ServiceLocator
+import com.goushik.upiwallet.domain.CaptureWatch
 import kotlinx.coroutines.launch
 
 /**
- * Shared base for the three home-screen widgets. Each subclass is a no-arg, manifest-instantiated
+ * Shared base for the five home-screen widgets. Each subclass is a no-arg, manifest-instantiated
  * provider that pins its [size]. onUpdate loads a snapshot off the main thread ([goAsync] + the
  * process-scoped IO scope) and binds it — the try/finally guarantees `finish()` on every path.
  *
@@ -78,6 +79,8 @@ abstract class BaseWalletWidget(private val size: WidgetSize) : AppWidgetProvide
             context, size, id, snap,
             revealed = RevealRegistry.isRevealed(id),
             spendHidden = RevealRegistry.isSpendHidden(id),
+            capturePaused = CaptureWatch.isPaused(context),
+            captureStuck = CaptureWatch.isStuck(context),
         )
 
     companion object {
@@ -96,3 +99,6 @@ class WalletWidgetLarge : BaseWalletWidget(WidgetSize.LARGE)
 
 /** The monthly-budget money-stack meter — % of the cap left, no rupees. */
 class WalletWidgetBudget : BaseWalletWidget(WidgetSize.BUDGET)
+
+/** Week + month quota meter — % of each cap SPENT, no rupees, no reset countdowns. */
+class WalletWidgetQuota : BaseWalletWidget(WidgetSize.QUOTA)

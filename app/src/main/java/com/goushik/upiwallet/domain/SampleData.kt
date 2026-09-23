@@ -141,6 +141,39 @@ object SampleData {
             categoryLabel = FOOD, spotIndex = 2),
     )
 
+    /** The seeder's two sample UPI IDs, written into the profile by [seed]. A real profile holding either
+     *  one means the sample data leaked into a real install (see domain/review/SampleRows). */
+    const val SAMPLE_OWN_VPAS = "bramstoker@oksbi,bramstoker@okhdfcbank"
+
+    /**
+     * What one seeded row looks like, so a later check can recognise the seeder's rows among real ones
+     * (domain/review/SampleRows). Built from the same [ROWS] and the same helpers [seed] uses, so the two
+     * can never drift apart.
+     */
+    data class Fingerprint(
+        val payeeName: String,
+        val amountPaise: Long,
+        val direction: Direction,
+        val source: String,
+        /** The seeder's own made-up reference for an SMS fixture; null for screen/manual fixtures. */
+        val rrn: String?,
+        /** How long before the seed's `now` the row is dated — identical for every row of one seed run. */
+        val offsetMs: Long,
+    )
+
+    val FINGERPRINTS: List<Fingerprint> by lazy {
+        ROWS.mapIndexed { i, r -> Fingerprint(r.payeeName, paiseOf(r), r.direction, r.source, rrnFor(i, r), offsetOf(r)) }
+    }
+
+    private fun paiseOf(r: Row): Long = Math.round(r.rupees * 100.0)
+
+    private fun offsetOf(r: Row): Long = r.daysAgo * DAY_MS + r.hour * 3_600_000L
+
+    /** SMS rows get a distinct 12-digit RRN; the UNIQUE(rrn,direction) index drops dup RRNs silently
+     *  (OnConflictStrategy.IGNORE), so each must be unique. a11y/manual rows keep null. */
+    private fun rrnFor(index: Int, r: Row): String? =
+        if (r.source == Source.SMS) "4%011d".format(index.toLong()) else null
+
     /**
      * Wipe the DB and reseed deterministic sample data.
      *
@@ -164,7 +197,7 @@ object SampleData {
         profileDao.upsert(
             UserProfileEntity(
                 displayName = "Bram Stoker",
-                ownVpasCsv = "bramstoker@oksbi,bramstoker@okhdfcbank",
+                ownVpasCsv = SAMPLE_OWN_VPAS,
                 onboardedAt = now,
             ),
         )
@@ -177,16 +210,14 @@ object SampleData {
 
         // 4. transactions — deterministic, indexed.
         ROWS.forEachIndexed { i, r ->
-            val eventAt = now - r.daysAgo * DAY_MS - r.hour * 3_600_000L
-            // SMS rows get a distinct 12-digit RRN; the UNIQUE(rrn,direction) index drops dup RRNs
-            // silently (OnConflictStrategy.IGNORE), so each must be unique. a11y/manual rows keep null.
-            val rrn = if (r.source == Source.SMS) "4%011d".format(i.toLong()) else null
+            val eventAt = now - offsetOf(r)
+            val rrn = rrnFor(i, r)
             val loc = if (r.spotIndex in SPOTS.indices) SPOTS[r.spotIndex] else null
 
             txnDao.insert(
                 TransactionEntity(
                     id = Ids.uuid7(),
-                    amountPaise = Math.round(r.rupees * 100.0),
+                    amountPaise = paiseOf(r),
                     direction = r.direction,
                     status = r.status,
                     payeeName = r.payeeName,

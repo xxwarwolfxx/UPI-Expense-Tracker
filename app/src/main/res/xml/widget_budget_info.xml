@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Resize floor 140x96dp: narrower, a three-digit percent ("125%") wraps into two lines; shorter, the
+     two-line label loses its bottom. Checked by WidgetCompareTest.renderBudgetEdges. minWidth must be at
+     least minResizeWidth, or Android ignores the floor. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="110dp"
+    android:minWidth="140dp"
     android:minHeight="110dp"
-    android:minResizeWidth="100dp"
-    android:minResizeHeight="90dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="96dp"
     android:targetCellWidth="2"
     android:targetCellHeight="1"
     android:resizeMode="horizontal|vertical"

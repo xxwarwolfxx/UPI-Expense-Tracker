@@ -23,4 +23,9 @@ interface BalanceAnchorDao {
     /** Onboarding re-anchors balances from scratch — clear before inserting the entered values. */
     @Query("DELETE FROM balance_anchors")
     suspend fun clear()
+
+    /** Remove ONE account. Callers must go through BalanceCalculator.anchorsAfterDelete first so the
+     *  global balance cutoff can't move when the deleted anchor held the newest stamp. */
+    @Query("DELETE FROM balance_anchors WHERE id = :id")
+    suspend fun deleteById(id: String)
 }
