@@ -2,7 +2,14 @@
 
 *A wallet you glance at.*
 
-**Website: [upiet.in](https://upiet.in)**
+<p>
+  <a href="https://f-droid.org/packages/com.goushik.upiwallet/"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"></a>
+  <a href="https://upiet.in"><img src=".github/assets/website-badge.png" alt="Visit the website: upiet.in" height="80"></a>
+</p>
+
+Get it on **F-Droid**: it builds the app itself from this source code and publishes it only if its
+build matches the signed APK in [Releases](../../releases). For more details and the install guide,
+visit **[upiet.in](https://upiet.in)**.
 
 An Android-first, **100% offline** personal expense tracker for UPI payments. It quietly captures
 every payment you make, sorts it, and shows your daily / weekly / monthly spend plus an
